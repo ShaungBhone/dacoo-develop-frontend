@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import {
   BuildingIcon,
   CheckCircle2Icon,
+  CopyIcon,
   ExternalLinkIcon,
   Link2Icon,
   LockIcon,
@@ -87,6 +88,16 @@ function IntegrationCard({
   const isConnected = provider.connected
   const isAllowedByPlan = provider.is_allowed_by_plan
   const canConnectMore = meta ? meta.can_connect_more : true
+  const viberDeepLink = provider.integration?.viber_deep_link
+  const [copied, setCopied] = React.useState(false)
+
+  async function copyViberLink() {
+    if (!viberDeepLink) return
+
+    await navigator.clipboard.writeText(viberDeepLink)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 2_000)
+  }
 
   return (
     <Card
@@ -131,6 +142,29 @@ function IntegrationCard({
           <CardDescription className="text-sm leading-relaxed">
             {provider.description}
           </CardDescription>
+          {provider.provider === "viber" && viberDeepLink && (
+            <div className="mt-3 rounded-md border bg-muted/30 p-3">
+              <p className="text-sm font-medium">Organization Viber link</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Share this link with customers. Messages started from it go to
+                this organization only.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-3 gap-1.5"
+                onClick={copyViberLink}
+              >
+                {copied ? (
+                  <CheckCircle2Icon className="size-3.5" />
+                ) : (
+                  <CopyIcon className="size-3.5" />
+                )}
+                {copied ? "Copied" : "Copy Viber link"}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </div>
       <CardFooter className="justify-between">

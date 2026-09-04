@@ -6,6 +6,7 @@ export type IntegrationRecord = {
   name: string
   created_at: string
   updated_at: string
+  viber_deep_link?: string | null
 }
 
 export type IntegrationProvider = {
