@@ -4,7 +4,9 @@ import { Spinner } from "@/components/ui/spinner"
 
 export default async function AgentSettingsPage({
   params,
-}: PageProps<"/agents/[id]">) {
+}: {
+  params: Promise<{ id: string }>
+}) {
   const { id } = await params
 
   return (
