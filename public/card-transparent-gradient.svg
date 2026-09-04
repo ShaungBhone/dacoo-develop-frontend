@@ -1,0 +1,15 @@
+<svg preserveAspectRatio="none" width="100%" height="100%" overflow="visible" style="display: block;" viewBox="0 0 416 416" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Gradient" filter="url(#filter0_f_0_36)">
+<path id="Segment" opacity="0.3" d="M128 208C128 163.817 163.817 128 208 128V208H128Z" fill="var(--fill-0, #EE46BC)"/>
+<path id="Segment_2" opacity="0.3" d="M208 128C252.183 128 288 163.817 288 208H208V128Z" fill="var(--fill-0, #EF6820)"/>
+<path id="Segment_3" opacity="0.3" d="M128 208H208V288C163.817 288 128 252.183 128 208Z" fill="var(--fill-0, #2E90FA)"/>
+<path id="Segment_4" opacity="0.3" d="M208 208H288C288 252.183 252.183 288 208 288V208Z" fill="var(--fill-0, #17B26A)"/>
+</g>
+<defs>
+<filter id="filter0_f_0_36" x="0" y="0" width="416" height="416" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="64" result="effect1_foregroundBlur_0_36"/>
+</filter>
+</defs>
+</svg>
