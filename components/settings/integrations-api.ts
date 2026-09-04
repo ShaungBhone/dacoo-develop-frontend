@@ -16,16 +16,47 @@ export type IntegrationProvider = {
   connect_mode: string
   requires_oauth: boolean
   connected: boolean
+  is_allowed_by_plan: boolean
+  min_plan_name?: string
   integration: IntegrationRecord | null
+}
+
+export type IntegrationsMeta = {
+  plan_name: string
+  channels_limit: number
+  channels_count: number
+  can_connect_more: boolean
+}
+
+export type IntegrationsResponse = {
+  data: IntegrationProvider[]
+  meta: IntegrationsMeta
 }
 
 export async function fetchIntegrations(
   organizationId: number
-): Promise<IntegrationProvider[]> {
-  const res = await apiFetch<{ data: IntegrationProvider[] }>(
+): Promise<IntegrationsResponse> {
+  return await apiFetch<IntegrationsResponse>(
     `/api/v1/organizations/${organizationId}/integrations`
   )
-  return res.data
+}
+
+export type ConnectChannelResult =
+  | { requires_oauth: true; connect_url: string }
+  | { data: IntegrationRecord }
+
+export async function connectChannel(
+  organizationId: number,
+  provider: string,
+  extra: Record<string, string> = {}
+): Promise<ConnectChannelResult> {
+  return await apiFetch<ConnectChannelResult>(
+    `/api/v1/organizations/${organizationId}/integrations`,
+    {
+      method: "POST",
+      body: { provider, ...extra },
+    }
+  )
 }
 
 export async function connectTelegram(
