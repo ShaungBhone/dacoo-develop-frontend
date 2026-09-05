@@ -49,7 +49,7 @@ export function ConversationListItem({
         </AvatarFallback>
         <AvatarBadge
           className={
-            conversation.customer.isOnline ? "bg-emerald-500" : "bg-muted-foreground/40"
+            conversation.customer.isOnline ? "bg-emerald-500" : "bg-muted-foreground"
           }
           aria-label={conversation.customer.isOnline ? "Online" : "Offline"}
         />
