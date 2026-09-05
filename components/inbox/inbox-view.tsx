@@ -4,7 +4,13 @@ import * as React from "react"
 import { useActiveOrganization } from "@/hooks/use-active-organization"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/contexts/auth-context"
-import { fetchConversations, type Conversation } from "./api"
+import { useEcho } from "@/contexts/echo-context"
+import {
+  fetchConversations,
+  fetchInboxes,
+  type Conversation,
+  type InboxSummary,
+} from "./api"
 import { ConversationListView } from "./conversation-list-view"
 import { ConversationDetailView } from "./conversation-detail-view"
 import { InboxFilterRail, type InboxFilter } from "./inbox-filter-rail"
@@ -27,7 +33,9 @@ export function InboxView() {
   const organization = useActiveOrganization()
   const isMobile = useIsMobile()
   const { user } = useAuth()
+  const { echo } = useEcho()
   const [conversations, setConversations] = React.useState<Conversation[]>([])
+  const [inboxes, setInboxes] = React.useState<InboxSummary[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [selectedConversationId, setSelectedConversationId] = React.useState<
@@ -65,6 +73,15 @@ export function InboxView() {
         })
         .finally(() => {
           if (isCurrent) setIsLoading(false)
+        })
+
+      fetchInboxes(organization.id)
+        .then((data) => {
+          if (!isCurrent) return
+          setInboxes(data)
+        })
+        .catch(() => {
+          // ignore inbox fetch error
         })
     })
 
@@ -186,6 +203,40 @@ export function InboxView() {
 
     return () => clearInterval(interval)
   }, [conversations, organization])
+
+  React.useEffect(() => {
+    if (!echo || !organization) return
+
+    const inboxIds = Array.from(
+      new Set([
+        ...inboxes.map((i) => i.id),
+        ...conversations.map((c) => c.inbox.id),
+      ])
+    )
+
+    if (inboxIds.length === 0) return
+
+    const refreshConversations = () => {
+      fetchConversations(organization.id)
+        .then((fresh) => setConversations(fresh))
+        .catch(() => {})
+    }
+
+    inboxIds.forEach((inboxId) => {
+      const channelName = `inbox.${inboxId}`
+      const channel = echo.private(channelName)
+      channel.listen("MessageSent", refreshConversations)
+    })
+
+    return () => {
+      inboxIds.forEach((inboxId) => {
+        const channelName = `inbox.${inboxId}`
+        const channel = echo.private(channelName)
+        channel.stopListening("MessageSent")
+        echo.leave(channelName)
+      })
+    }
+  }, [echo, organization, inboxes, conversations])
 
   const filterRail = (
     <InboxFilterRail

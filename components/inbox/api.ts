@@ -586,3 +586,27 @@ export async function detachConversationTag(
   return mapConversation(response.data)
 }
 
+/* -------------------------------------------------------------------------- */
+/*                                   Inboxes                                  */
+/* -------------------------------------------------------------------------- */
+
+export type InboxSummary = {
+  id: number | string
+  name: string
+  provider: string
+}
+
+/** GET .../inboxes — list inboxes for the organization. */
+export async function fetchInboxes(
+  organizationId: number | string
+): Promise<InboxSummary[]> {
+  const response = await apiFetch<{
+    data: { id: number | string; name: string; provider?: string }[]
+  }>(`/api/v1/organizations/${organizationId}/inboxes`)
+  return response.data.map((item) => ({
+    id: item.id,
+    name: item.name,
+    provider: item.provider ?? "unknown",
+  }))
+}
+
