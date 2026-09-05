@@ -169,7 +169,10 @@ function IntegrationCard({
           <CardTitle className="text-base font-semibold">
             {provider.name}
           </CardTitle>
-          <CardDescription className="text-sm leading-relaxed">
+          <CardDescription
+            className="truncate text-sm leading-relaxed"
+            title={provider.description ?? undefined}
+          >
             {provider.description}
           </CardDescription>
         </CardContent>
