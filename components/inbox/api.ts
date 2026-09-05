@@ -316,6 +316,17 @@ export async function markConversationRead(
   )
 }
 
+/** DELETE .../conversations/{id} — permanently deletes a conversation and its messages. */
+export async function deleteConversation(
+  organizationId: number | string,
+  conversationId: number | string
+): Promise<void> {
+  await apiFetch(
+    `/api/v1/organizations/${organizationId}/conversations/${conversationId}`,
+    { method: "DELETE" }
+  )
+}
+
 /* -------------------------------------------------------------------------- */
 /*                              Organization members                          */
 /* -------------------------------------------------------------------------- */

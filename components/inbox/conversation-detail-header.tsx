@@ -15,6 +15,7 @@ import {
   SearchIcon,
   SparklesIcon,
   TagIcon,
+  Trash2Icon,
   UserRoundIcon,
   UserRoundPlusIcon,
 } from "@/components/ui/icons"
@@ -61,6 +62,7 @@ import { cn } from "@/lib/utils"
 import {
   attachConversationTags,
   createOrganizationTag,
+  deleteConversation,
   detachConversationTag,
   fetchOrganizationTags,
   syncConversationToRecord,
@@ -148,6 +150,7 @@ interface ConversationDetailHeaderProps {
   onAssignClick: (memberId?: number | string) => void
   onAssignAiClick?: () => void
   onConversationUpdate?: (conversation: Conversation) => void
+  onConversationDeleted?: (conversationId: number | string) => void
   onBack?: () => void
 }
 
@@ -160,6 +163,7 @@ export function ConversationDetailHeader({
   onAssignClick,
   onAssignAiClick,
   onConversationUpdate,
+  onConversationDeleted,
   onBack,
 }: ConversationDetailHeaderProps) {
   const [orgTags, setOrgTags] = React.useState<ConversationTag[]>([])
@@ -295,8 +299,26 @@ export function ConversationDetailHeader({
     }
   }
 
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false)
+  const [isDeleting, setIsDeleting] = React.useState(false)
+
   const handleSnooze = (durationLabel: string) => {
     toast.success(`Conversation snoozed for ${durationLabel}`)
+  }
+
+  const handleDeleteConversation = async () => {
+    if (!organizationId) return
+    setIsDeleting(true)
+    try {
+      await deleteConversation(organizationId, conversation.id)
+      toast.success("Conversation deleted")
+      setIsDeleteDialogOpen(false)
+      onConversationDeleted?.(conversation.id)
+    } catch {
+      toast.error("Failed to delete conversation. Please try again.")
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -599,8 +621,62 @@ export function ConversationDetailHeader({
                 <span>Sync to People record</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                variant="destructive"
+                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                onClick={() => setIsDeleteDialogOpen(true)}
+              >
+                <Trash2Icon className="size-4" />
+                <span>Delete conversation</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Delete conversation dialog */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete conversation</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this conversation with{" "}
+                <span className="font-medium text-foreground">
+                  {conversation.customer.displayName}
+                </span>
+                ? This will permanently delete the conversation and all of its messages. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:justify-end">
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => setIsDeleteDialogOpen(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                type="button"
+                onClick={handleDeleteConversation}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <>
+                    <Spinner className="size-4" />
+                    <span>Deleting…</span>
+                  </>
+                ) : (
+                  "Delete conversation"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Divider before panel toggle */}
         <div className="mx-1 h-4 w-px bg-border" />

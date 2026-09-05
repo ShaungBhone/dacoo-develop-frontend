@@ -162,6 +162,15 @@ export function InboxView() {
     )
   }
 
+  const handleConversationDeleted = (conversationId: number | string) => {
+    setConversations((current) =>
+      current.filter((conversation) => conversation.id !== conversationId)
+    )
+    if (selectedConversationId === conversationId) {
+      setSelectedConversationId(null)
+    }
+  }
+
   React.useEffect(() => {
     const hasActiveAi = conversations.some((c) => c.aiHandler === "ai-active")
     if (!hasActiveAi || !organization) return
@@ -213,6 +222,7 @@ export function InboxView() {
           organizationId={organization?.id ?? 0}
           onMessageSent={handleMessageSent}
           onConversationUpdate={handleConversationUpdate}
+          onConversationDeleted={handleConversationDeleted}
           onSelectConversation={(conversation) =>
             setSelectedConversationId(conversation.id)
           }

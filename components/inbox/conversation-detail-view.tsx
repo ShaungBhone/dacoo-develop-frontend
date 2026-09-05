@@ -37,6 +37,7 @@ interface ConversationDetailViewProps {
   organizationId: number | string
   onMessageSent: (conversationId: number | string, preview: string) => void
   onConversationUpdate: (conversation: Conversation) => void
+  onConversationDeleted?: (conversationId: number | string) => void
   onSelectConversation: (conversation: Conversation) => void
   onBack?: () => void
 }
@@ -47,6 +48,7 @@ export function ConversationDetailView({
   organizationId,
   onMessageSent,
   onConversationUpdate,
+  onConversationDeleted,
   onSelectConversation,
   onBack,
 }: ConversationDetailViewProps) {
@@ -321,6 +323,7 @@ export function ConversationDetailView({
         onAssignClick={openAssignMemberDialog}
         onAssignAiClick={() => setIsAssignAiOpen(true)}
         onConversationUpdate={onConversationUpdate}
+        onConversationDeleted={onConversationDeleted}
         onBack={onBack}
       />
 
