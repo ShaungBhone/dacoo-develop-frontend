@@ -45,6 +45,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { Spinner } from "@/components/ui/spinner"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Email } from "@/components/ui/svgs/email"
 import { Facebook } from "@/components/ui/svgs/facebook"
 import { Instagram } from "@/components/ui/svgs/instagram"
@@ -129,6 +134,31 @@ function IntegrationCard({
                 Limit reached
               </Badge>
             ) : null}
+            {provider.provider === "viber" && isConnected && viberDeepLink ? (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Copy Viber link"
+                      onClick={copyViberLink}
+                      className="text-muted-foreground hover:text-foreground"
+                    />
+                  }
+                >
+                  {copied ? (
+                    <CheckCircle2Icon className="size-3.5 text-emerald-500" />
+                  ) : (
+                    <CopyIcon className="size-3.5" />
+                  )}
+                </TooltipTrigger>
+                <TooltipContent>
+                  {copied ? "Copied!" : "Copy Viber link"}
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
             <ExternalLinkIcon
               className="size-4 text-muted-foreground"
               aria-hidden="true"
@@ -142,29 +172,6 @@ function IntegrationCard({
           <CardDescription className="text-sm leading-relaxed">
             {provider.description}
           </CardDescription>
-          {provider.provider === "viber" && viberDeepLink && (
-            <div className="mt-3 rounded-md border bg-muted/30 p-3">
-              <p className="text-sm font-medium">Organization Viber link</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Share this link with customers. Messages started from it go to
-                this organization only.
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="mt-3 gap-1.5"
-                onClick={copyViberLink}
-              >
-                {copied ? (
-                  <CheckCircle2Icon className="size-3.5" />
-                ) : (
-                  <CopyIcon className="size-3.5" />
-                )}
-                {copied ? "Copied" : "Copy Viber link"}
-              </Button>
-            </div>
-          )}
         </CardContent>
       </div>
       <CardFooter className="justify-between">

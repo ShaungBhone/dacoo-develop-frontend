@@ -20,6 +20,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { IconStack } from "@/components/reui/icon-stack"
 import { MessageSquareDashedIcon } from "@/components/ui/icons"
 
 export function InboxView() {
@@ -220,11 +221,13 @@ export function InboxView() {
       ) : (
         !isMobile && (
           <div className="flex flex-1 items-center justify-center bg-muted/10 p-8">
-            <Empty className="max-w-md border-border/50 bg-background/50 backdrop-blur-xs">
-              <EmptyMedia variant="outline">
-                <MessageSquareDashedIcon />
-              </EmptyMedia>
+            <Empty className="max-w-md py-10">
               <EmptyHeader>
+                <EmptyMedia>
+                  <IconStack aria-hidden="true" className="text-primary h-24 w-22">
+                    <MessageSquareDashedIcon className="text-primary size-5" />
+                  </IconStack>
+                </EmptyMedia>
                 <EmptyTitle>No conversation selected</EmptyTitle>
                 <EmptyDescription>
                   Select a conversation from the list to view messages.
