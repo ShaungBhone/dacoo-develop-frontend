@@ -74,6 +74,7 @@ import {
   type ConversationTag,
   type OrganizationMember,
 } from "./api"
+import { PRIORITY_CONFIG, PRIORITY_OPTIONS } from "./priority"
 
 const STATUS_CONFIG: Record<
   ConversationStatus,
@@ -128,26 +129,12 @@ const STATUS_OPTIONS: { value: ConversationStatus; label: string; dotColor: stri
   { value: "closed", label: "Closed", dotColor: "bg-slate-400" },
 ]
 
-const PRIORITY_OPTIONS: { value: ConversationPriority; label: string }[] = [
-  { value: "low", label: "Low" },
-  { value: "normal", label: "Normal" },
-  { value: "high", label: "High" },
-  { value: "urgent", label: "Urgent" },
-]
-
 const STATUS_LABEL: Record<ConversationStatus, string> = {
   open: "Open",
   pending: "Pending",
   resolved: "Resolved",
   closed: "Closed",
   spam: "Spam",
-}
-
-const PRIORITY_LABEL: Record<ConversationPriority, string> = {
-  low: "Low",
-  normal: "Normal",
-  high: "High",
-  urgent: "Urgent",
 }
 
 interface ConversationDetailHeaderProps {
@@ -240,7 +227,7 @@ export function ConversationDetailHeader({
         priority: newPriority,
       })
       onConversationUpdate?.(updated)
-      toast.success(`Priority set to ${PRIORITY_LABEL[newPriority]}`)
+      toast.success(`Priority set to ${PRIORITY_CONFIG[newPriority].label}`)
     } catch {
       toast.error("Couldn't update priority")
     }
@@ -612,20 +599,29 @@ export function ConversationDetailHeader({
             <DropdownMenuGroup>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
-                  <FlagIcon />
+                  <FlagIcon
+                    className={cn(
+                      "size-4",
+                      PRIORITY_CONFIG[conversation.priority]?.color
+                    )}
+                  />
                   <span>Priority</span>
-                  <span className="ml-auto text-xs text-muted-foreground capitalize">
-                    {conversation.priority}
-                  </span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="w-36">
                   <DropdownMenuRadioGroup
                     value={conversation.priority}
-                    onValueChange={(val) => handlePriorityChange(val as ConversationPriority)}
+                    onValueChange={(val) =>
+                      handlePriorityChange(val as ConversationPriority)
+                    }
                   >
                     {PRIORITY_OPTIONS.map((opt) => (
-                      <DropdownMenuRadioItem key={opt.value} value={opt.value}>
-                        {opt.label}
+                      <DropdownMenuRadioItem
+                        key={opt.value}
+                        value={opt.value}
+                        className="flex items-center gap-2"
+                      >
+                        <FlagIcon className={cn("size-3.5", opt.color)} />
+                        <span>{opt.label}</span>
                       </DropdownMenuRadioItem>
                     ))}
                   </DropdownMenuRadioGroup>

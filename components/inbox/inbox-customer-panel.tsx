@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import {
   BriefcaseIcon,
   CopyIcon,
+  FlagIcon,
   GlobeIcon,
   MailIcon,
   MapPinIcon,
@@ -18,6 +19,13 @@ import {
   UserRoundPlusIcon,
   XIcon,
 } from "@/components/ui/icons"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ResizablePanel } from "@/components/ui/resizable"
 import {
   Sheet,
@@ -34,8 +42,11 @@ import { getChannelMeta } from "./channel-icon"
 import {
   fetchConversation,
   syncConversationToRecord,
+  updateConversation,
   type Conversation,
+  type ConversationPriority,
 } from "./api"
+import { PRIORITY_CONFIG, PRIORITY_OPTIONS } from "./priority"
 
 interface InboxCustomerPanelProps {
   conversation: Conversation
@@ -152,6 +163,22 @@ export function InboxCustomerPanel({
     }
   }
 
+  const currentPriority =
+    PRIORITY_CONFIG[conversation.priority] ?? PRIORITY_CONFIG.normal
+
+  const handlePriorityChange = async (newPriority: ConversationPriority) => {
+    if (newPriority === conversation.priority) return
+    try {
+      const updated = await updateConversation(organizationId, conversation.id, {
+        priority: newPriority,
+      })
+      onConversationUpdate?.(updated)
+      toast.success(`Priority set to ${PRIORITY_CONFIG[newPriority].label}`)
+    } catch {
+      toast.error("Couldn't update priority")
+    }
+  }
+
   const handleSync = async () => {
     setIsSyncing(true)
     try {
@@ -195,10 +222,49 @@ export function InboxCustomerPanel({
 
           <div className="mt-3 px-1">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="truncate text-xl font-semibold tracking-tight text-foreground">
-                  {customer.displayName}
-                </h2>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="truncate text-xl font-semibold tracking-tight text-foreground">
+                    {customer.displayName}
+                  </h2>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          className={cn(
+                            "shrink-0 hover:bg-muted/80",
+                            currentPriority.color
+                          )}
+                          aria-label={`Change priority. Current: ${currentPriority.label}`}
+                          title={`Priority: ${currentPriority.label}`}
+                        />
+                      }
+                    >
+                      <FlagIcon className="size-3.5" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-36">
+                      <DropdownMenuRadioGroup
+                        value={conversation.priority}
+                        onValueChange={(val) =>
+                          handlePriorityChange(val as ConversationPriority)
+                        }
+                      >
+                        {PRIORITY_OPTIONS.map((opt) => (
+                          <DropdownMenuRadioItem
+                            key={opt.value}
+                            value={opt.value}
+                            className="flex items-center gap-2"
+                          >
+                            <FlagIcon className={cn("size-3.5", opt.color)} />
+                            <span>{opt.label}</span>
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
                 <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
                   <channel.Icon className="size-4 shrink-0" aria-hidden="true" />
                   <span>{channel.label}</span>
