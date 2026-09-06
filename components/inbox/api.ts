@@ -89,7 +89,7 @@ export async function updateInboxContact(
 /*                                Conversations                               */
 /* -------------------------------------------------------------------------- */
 
-export type ConversationStatus = "open" | "pending" | "resolved" | "closed"
+export type ConversationStatus = "open" | "pending" | "resolved" | "closed" | "spam"
 export type ConversationPriority = "low" | "normal" | "high" | "urgent"
 export type AiHandlerState = "human" | "ai-active" | "needs-attention"
 

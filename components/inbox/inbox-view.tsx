@@ -94,49 +94,51 @@ export function InboxView() {
     let list = conversations
     const userId = user?.id
 
-    if (activeFilter.type === "inbox") {
-      switch (activeFilter.key) {
-        case "your_inbox":
-          list = list.filter((c) => userId && c.assignee?.id === userId)
-          break
-        case "mentions":
-          list = list.filter((c) => userId && c.assignee?.id === userId)
-          break
-        case "created_by_you":
-          list = list.filter((c) => userId && c.assignee?.id === userId)
-          break
-        case "unassigned":
-          list = list.filter((c) => !c.assignee && c.aiHandler === "human")
-          break
-        case "spam":
-          list = list.filter(
-            (c) => c.status === "closed" && c.priority === "low"
-          )
-          break
-        case "all":
-        default:
-          break
+    if (activeFilter.type === "inbox" && activeFilter.key === "spam") {
+      list = list.filter((c) => c.status === "spam")
+    } else {
+      // Exclude spam from all other views
+      list = list.filter((c) => c.status !== "spam")
+
+      if (activeFilter.type === "inbox") {
+        switch (activeFilter.key) {
+          case "your_inbox":
+            list = list.filter((c) => userId && c.assignee?.id === userId)
+            break
+          case "mentions":
+            list = list.filter((c) => userId && c.assignee?.id === userId)
+            break
+          case "created_by_you":
+            list = list.filter((c) => userId && c.assignee?.id === userId)
+            break
+          case "unassigned":
+            list = list.filter((c) => !c.assignee && c.aiHandler === "human")
+            break
+          case "all":
+          default:
+            break
+        }
+      } else if (activeFilter.type === "view") {
+        switch (activeFilter.key) {
+          case "starred":
+            list = list.filter((c) => c.priority === "urgent")
+            break
+          case "high_priority":
+            list = list.filter(
+              (c) => c.priority === "high" || c.priority === "urgent"
+            )
+            break
+          case "snoozed":
+            list = list.filter((c) => c.status === "pending")
+            break
+        }
+      } else if (activeFilter.type === "channel") {
+        list = list.filter(
+          (c) =>
+            c.inbox.name === activeFilter.name ||
+            String(c.inbox.id) === activeFilter.key
+        )
       }
-    } else if (activeFilter.type === "view") {
-      switch (activeFilter.key) {
-        case "starred":
-          list = list.filter((c) => c.priority === "urgent")
-          break
-        case "high_priority":
-          list = list.filter(
-            (c) => c.priority === "high" || c.priority === "urgent"
-          )
-          break
-        case "snoozed":
-          list = list.filter((c) => c.status === "pending")
-          break
-      }
-    } else if (activeFilter.type === "channel") {
-      list = list.filter(
-        (c) =>
-          c.inbox.name === activeFilter.name ||
-          String(c.inbox.id) === activeFilter.key
-      )
     }
 
     if (!searchQuery) return list
@@ -177,6 +179,35 @@ export function InboxView() {
         conversation.id === updated.id ? updated : conversation
       )
     )
+
+    if (selectedConversationId === updated.id) {
+      const isViewingSpam =
+        activeFilter.type === "inbox" && activeFilter.key === "spam"
+      const leavingCurrentView = isViewingSpam
+        ? updated.status !== "spam"
+        : updated.status === "spam"
+
+      if (leavingCurrentView) {
+        const remaining = visibleConversations.filter(
+          (c) => c.id !== updated.id
+        )
+        const currentIndex = visibleConversations.findIndex(
+          (c) => c.id === updated.id
+        )
+        const nextConversation =
+          visibleConversations[currentIndex + 1] ??
+          visibleConversations[currentIndex - 1] ??
+          null
+
+        if (nextConversation && nextConversation.id !== updated.id) {
+          setSelectedConversationId(nextConversation.id)
+        } else if (remaining.length > 0) {
+          setSelectedConversationId(remaining[0].id)
+        } else {
+          setSelectedConversationId(null)
+        }
+      }
+    }
   }
 
   const handleConversationDeleted = (conversationId: number | string) => {

@@ -13,6 +13,7 @@ import {
   MoreVerticalIcon,
   PanelRightIcon,
   SearchIcon,
+  ShieldAlertIcon,
   SparklesIcon,
   TagIcon,
   Trash2Icon,
@@ -111,6 +112,13 @@ const STATUS_CONFIG: Record<
       "bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-800 dark:hover:bg-slate-700",
     separatorClass: "bg-slate-600/30",
   },
+  spam: {
+    label: "Spam",
+    dotColor: "bg-red-400",
+    buttonClass:
+      "bg-red-600 hover:bg-red-700 text-white dark:bg-red-600 dark:hover:bg-red-500",
+    separatorClass: "bg-red-400/30",
+  },
 }
 
 const STATUS_OPTIONS: { value: ConversationStatus; label: string; dotColor: string }[] = [
@@ -132,6 +140,7 @@ const STATUS_LABEL: Record<ConversationStatus, string> = {
   pending: "Pending",
   resolved: "Resolved",
   closed: "Closed",
+  spam: "Spam",
 }
 
 const PRIORITY_LABEL: Record<ConversationPriority, string> = {
@@ -207,6 +216,20 @@ export function ConversationDetailHeader({
       toast.success(`Marked as ${STATUS_LABEL[newStatus]}`)
     } catch {
       toast.error(`Couldn't change status to ${STATUS_LABEL[newStatus]}`)
+    }
+  }
+
+  const handleToggleSpam = async () => {
+    const isSpam = conversation.status === "spam"
+    const newStatus: ConversationStatus = isSpam ? "open" : "spam"
+    try {
+      const updated = await updateConversation(organizationId, conversation.id, {
+        status: newStatus,
+      })
+      onConversationUpdate?.(updated)
+      toast.success(isSpam ? "Unmarked as spam" : "Marked as spam")
+    } catch {
+      toast.error(isSpam ? "Couldn't unmark as spam" : "Couldn't mark as spam")
     }
   }
 
@@ -615,6 +638,14 @@ export function ConversationDetailHeader({
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={handleMarkAsUnread}>
                 <span>Mark as unread</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleToggleSpam}>
+                <ShieldAlertIcon className="size-4" />
+                <span>
+                  {conversation.status === "spam"
+                    ? "Mark as not spam"
+                    : "Mark as spam"}
+                </span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleSyncToRecord}>
                 <UserRoundPlusIcon />

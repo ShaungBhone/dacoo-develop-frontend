@@ -107,37 +107,37 @@ export function InboxFilterRail({
     const userId = user?.id
 
     const yourInbox = conversations.filter(
-      (c) => userId && c.assignee?.id === userId
+      (c) => c.status !== "spam" && userId && c.assignee?.id === userId
     ).length
 
     const mentions = conversations.filter(
-      (c) => userId && c.assignee?.id === userId
+      (c) => c.status !== "spam" && userId && c.assignee?.id === userId
     ).length
 
     const createdByYou = conversations.filter(
-      (c) => userId && c.assignee?.id === userId
+      (c) => c.status !== "spam" && userId && c.assignee?.id === userId
     ).length
 
-    const all = conversations.length
+    const all = conversations.filter((c) => c.status !== "spam").length
 
     const unassigned = conversations.filter(
-      (c) => !c.assignee && c.aiHandler === "human"
+      (c) => c.status !== "spam" && !c.assignee && c.aiHandler === "human"
     ).length
 
-    const spam = conversations.filter(
-      (c) => c.status === "closed" && c.priority === "low"
-    ).length
+    const spam = conversations.filter((c) => c.status === "spam").length
 
     const starred = conversations.filter(
-      (c) => c.priority === "urgent"
+      (c) => c.status !== "spam" && c.priority === "urgent"
     ).length
 
     const highPriority = conversations.filter(
-      (c) => c.priority === "high" || c.priority === "urgent"
+      (c) =>
+        c.status !== "spam" &&
+        (c.priority === "high" || c.priority === "urgent")
     ).length
 
     const snoozed = conversations.filter(
-      (c) => c.status === "pending"
+      (c) => c.status !== "spam" && c.status === "pending"
     ).length
 
     return {
@@ -161,6 +161,7 @@ export function InboxFilterRail({
     >()
 
     for (const conversation of conversations) {
+      if (conversation.status === "spam") continue
       const key = conversation.inbox.name || String(conversation.inbox.id)
       const existing = map.get(key)
       if (existing) {

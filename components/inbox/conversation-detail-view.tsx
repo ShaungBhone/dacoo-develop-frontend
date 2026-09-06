@@ -2,9 +2,12 @@
 
 import * as React from "react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
+import { toast } from "sonner"
 import { useAuth } from "@/contexts/auth-context"
 import { useEcho } from "@/contexts/echo-context"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { Button } from "@/components/ui/button"
+import { ShieldAlertIcon } from "@/components/ui/icons"
 import {
   ResizableHandle,
   ResizablePanel,
@@ -312,6 +315,22 @@ export function ConversationDetailView({
     }
   }
 
+  const handleUnmarkSpam = async () => {
+    try {
+      const updated = await updateConversation(
+        organizationId,
+        conversation.id,
+        {
+          status: "open",
+        }
+      )
+      onConversationUpdate(updated)
+      toast.success("Unmarked as spam")
+    } catch {
+      toast.error("Couldn't unmark as spam")
+    }
+  }
+
   const conversationColumn = (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
       <ConversationDetailHeader
@@ -326,6 +345,25 @@ export function ConversationDetailView({
         onConversationDeleted={onConversationDeleted}
         onBack={onBack}
       />
+
+      {conversation.status === "spam" && (
+        <div className="flex items-center justify-between gap-3 border-b border-destructive/20 bg-destructive/10 px-4 py-2 text-xs text-destructive">
+          <div className="flex items-center gap-2 min-w-0">
+            <ShieldAlertIcon className="size-4 shrink-0" />
+            <span className="font-medium truncate">
+              This conversation is marked as spam.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 shrink-0 text-xs font-medium"
+            onClick={handleUnmarkSpam}
+          >
+            Not spam
+          </Button>
+        </div>
+      )}
 
       <div
         ref={scrollContainerRef}
