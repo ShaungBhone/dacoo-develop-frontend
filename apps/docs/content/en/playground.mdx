@@ -1,0 +1,25 @@
+export const metadata = {
+  title: "Playground",
+  description: "Test retrieval and generated answers before using an agent with customers.",
+  group: "Automation",
+  order: 5,
+  searchText: "playground test query retrieval chunks citations top k reranking temperature model answer knowledge dataset",
+}
+
+# Playground
+
+Use Playground to test questions against a selected dataset and inspect how an answer was produced.
+
+## Run a useful test
+
+Choose a knowledge collection, enter a realistic customer question, and run the query. Review both the answer and its retrieved source chunks.
+
+## Tune retrieval
+
+- **Top-K** controls how many matching chunks are considered.
+- **Reranking** can improve the order of retrieved results.
+- **Temperature** controls how varied the generated wording may be.
+
+Change one setting at a time and repeat the same questions so results remain comparable.
+
+<Callout>A fluent answer is not automatically a correct answer. Confirm that important claims are supported by the displayed source material.</Callout>

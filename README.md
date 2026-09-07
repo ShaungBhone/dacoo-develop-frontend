@@ -1,21 +1,25 @@
-# Next.js template
+# Dacoo frontend
 
-This is a Next.js template with shadcn/ui.
+This Bun workspace contains the Dacoo customer dashboard and authenticated customer guide.
 
-## Adding components
+## Applications
 
-To add components to your app, run the following command:
+- `apps/dashboard` — customer application
+- `apps/docs` — bilingual documentation site for `docs.dacoo.co`
+- `packages/ui` — shared brand and UI primitives
 
-```bash
-npx shadcn@latest add button
-```
+Run `bun run dev:dashboard` and `bun run dev:docs` in separate terminals. The docs app defaults to port 3001.
 
-This will place the ui components in the `components` directory.
+## Environment
 
-## Using components
+Copy the `.env.example` file in each app and configure the Laravel API URL. The backend must also set `DOCS_URL` to the public docs origin.
 
-To use the components in your app, import them as follows:
+## Vercel
 
-```tsx
-import { Button } from "@/components/ui/button";
-```
+Create two projects from this repository with root directories `apps/dashboard` and `apps/docs`. Assign `docs.dacoo.co` to the docs project and configure the environment variables from each app's example file.
+
+## Verification
+
+Use `bun run typecheck`, `bun run test`, and the workspace-specific lint or build commands from the root package.
+
+The Playwright suite uses Bun-installed dependencies but must run under Node.js because Playwright does not support Bun as its test runtime. Set `E2E_USER_EMAIL` and `E2E_USER_PASSWORD`, then run `bun run test:e2e` after configuring the two local app environments for `dashboard.localhost:3000` and `docs.localhost:3001`.
