@@ -12,7 +12,7 @@ Run `bun run dev:dashboard` and `bun run dev:docs` in separate terminals. The do
 
 ## Environment
 
-Copy the `.env.example` file in each app and configure the Laravel API URL. The backend must also set `DOCS_URL` to the public docs origin.
+The root `.env.example` is the complete variable reference. Copy each app's scoped example to `apps/dashboard/.env.local` or `apps/docs/.env.local` and configure the Laravel API URL. The backend must also set `DOCS_URL` to the public docs origin.
 
 ## Vercel
 
