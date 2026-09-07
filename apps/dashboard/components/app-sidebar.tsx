@@ -26,12 +26,12 @@ import {
   WalletIcon,
   ArrowLeftRightIcon,
   HomeIcon,
-  BookOpenIcon,
 } from "@/components/ui/icons"
 
 import { useActiveOrganization } from "@/hooks/use-active-organization"
 import { fetchObjects, type RecordObject } from "@/components/records/api"
 import { ObjectGlyph } from "@/components/records/object-icon"
+import { fetchConversations } from "@/components/inbox/api"
 
 // Navigation groups data for the inbox chat application.
 const data = {
@@ -41,7 +41,6 @@ const data = {
       defaultGroup: "Workspace",
       items: [
         { title: "Home", url: "/home", icon: <HomeIcon /> },
-        { title: "Documentation", url: "/docs/access", icon: <BookOpenIcon /> },
       ],
     },
     {
@@ -98,6 +97,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const organization = useActiveOrganization()
   const [objects, setObjects] = React.useState<RecordObject[]>([])
+  const [conversationCount, setConversationCount] = React.useState<number | null>(
+    null
+  )
+
+  React.useEffect(() => {
+    let isCurrent = true
+
+    if (!organization) {
+      setConversationCount(null)
+      return () => {
+        isCurrent = false
+      }
+    }
+
+    fetchConversations(organization.id)
+      .then((conversations) => {
+        if (isCurrent) setConversationCount(conversations.length)
+      })
+      .catch(() => {
+        if (isCurrent) setConversationCount(null)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [organization])
 
   const loadObjects = React.useCallback(() => {
     if (!organization) return
@@ -148,12 +173,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       }),
       items: group.items.map((item) => ({
         ...item,
+        badge: item.url === "/inbox" ? conversationCount : undefined,
         title: t(`common.${item.title.toLowerCase()}`, {
           defaultValue: item.title,
         }),
       })),
     }))
-  }, [t])
+  }, [conversationCount, t])
 
   const navGroups = React.useMemo(() => {
     const [workspaceGroup, communicationGroup, ...restGroups] = translatedNavGroups

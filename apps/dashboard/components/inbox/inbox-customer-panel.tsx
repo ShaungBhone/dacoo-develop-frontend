@@ -134,7 +134,9 @@ export function InboxCustomerPanel({
   const [detail, setDetail] = React.useState<Conversation | null>(null)
   const [isSyncing, setIsSyncing] = React.useState(false)
 
-  const displayed = detail?.id === conversation.id ? detail : conversation
+  // Keep detailed customer data while applying live conversation updates, such as tags.
+  const displayed =
+    detail?.id === conversation.id ? { ...detail, ...conversation } : conversation
   const { customer } = displayed
   const channel = getChannelMeta(displayed.inbox.provider)
 
@@ -232,9 +234,9 @@ export function InboxCustomerPanel({
                       render={
                         <Button
                           variant="ghost"
-                          size="icon-xs"
+                          size="sm"
                           className={cn(
-                            "shrink-0 hover:bg-muted/80",
+                            "shrink-0 gap-1.5 px-2 hover:bg-muted/80",
                             currentPriority.color
                           )}
                           aria-label={`Change priority. Current: ${currentPriority.label}`}
@@ -243,6 +245,7 @@ export function InboxCustomerPanel({
                       }
                     >
                       <FlagIcon className="size-3.5" />
+                      <span>{currentPriority.label}</span>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-36">
                       <DropdownMenuRadioGroup
