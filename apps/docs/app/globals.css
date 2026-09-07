@@ -1,0 +1,67 @@
+@import "tailwindcss";
+@import "@dacoo/ui/styles.css";
+@source "../../../packages/ui/src";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --background: oklch(0.99 0.002 270);
+  --foreground: oklch(0.18 0.01 270);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --primary: var(--dacoo-brand);
+  --primary-foreground: var(--dacoo-brand-foreground);
+  --muted: oklch(0.965 0.004 270);
+  --muted-foreground: oklch(0.5 0.015 270);
+  --accent: oklch(0.95 0.02 265);
+  --accent-foreground: oklch(0.32 0.12 265);
+  --border: oklch(0.91 0.008 270);
+  --ring: var(--primary);
+}
+
+.dark {
+  --background: oklch(0.145 0.01 270);
+  --foreground: oklch(0.96 0.004 270);
+  --card: oklch(0.19 0.012 270);
+  --card-foreground: var(--foreground);
+  --muted: oklch(0.23 0.012 270);
+  --muted-foreground: oklch(0.7 0.012 270);
+  --accent: oklch(0.25 0.04 265);
+  --accent-foreground: oklch(0.9 0.04 265);
+  --border: oklch(1 0 0 / 12%);
+}
+
+* { border-color: var(--border); }
+html { scroll-behavior: smooth; }
+body { background: var(--background); color: var(--foreground); }
+
+.docs-prose { color: var(--muted-foreground); font-size: 1rem; line-height: 1.8; }
+.docs-prose h1 { color: var(--foreground); font-size: clamp(2rem, 5vw, 3.25rem); font-weight: 700; letter-spacing: -0.04em; line-height: 1.08; margin-bottom: 1rem; }
+.docs-prose h2 { color: var(--foreground); font-size: 1.5rem; font-weight: 650; letter-spacing: -0.025em; margin-top: 3rem; margin-bottom: .75rem; scroll-margin-top: 6rem; }
+.docs-prose h3 { color: var(--foreground); font-size: 1.1rem; font-weight: 650; margin-top: 2rem; margin-bottom: .5rem; scroll-margin-top: 6rem; }
+.docs-prose p, .docs-prose ul, .docs-prose ol { margin-top: 1rem; }
+.docs-prose ul { list-style: disc; padding-left: 1.25rem; }
+.docs-prose ol { list-style: decimal; padding-left: 1.25rem; }
+.docs-prose a { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+.docs-prose code { border-radius: .35rem; background: var(--muted); color: var(--foreground); padding: .15rem .35rem; font-size: .875em; }
+.docs-prose pre { overflow-x: auto; border: 1px solid var(--border); border-radius: .75rem; background: oklch(0.17 0.015 270); color: oklch(0.94 0.01 270); padding: 1rem; margin-top: 1rem; }
+.docs-prose pre code { background: transparent; color: inherit; padding: 0; }
+.docs-prose table { width: 100%; border-collapse: collapse; margin-top: 1.25rem; }
+.docs-prose th, .docs-prose td { border-bottom: 1px solid var(--border); padding: .65rem; text-align: left; }
