@@ -21,7 +21,6 @@ import {
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuAction,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSub,
@@ -41,7 +40,6 @@ export type NavItem = {
   title: string
   url: string
   icon?: React.ReactNode
-  badge?: number | null
   isActive?: boolean
   items?: {
     title: string
@@ -95,14 +93,6 @@ export function Navigation({ navGroups, projects = [] }: NavigationProps) {
             {item.icon}
             <span>{item.title}</span>
           </SidebarMenuButton>
-          {item.badge !== undefined && item.badge !== null && (
-            <SidebarMenuBadge
-              className="right-2 size-5 min-w-5 rounded-full bg-destructive text-[9px]"
-              style={{ color: "#fff" }}
-            >
-              {item.badge}
-            </SidebarMenuBadge>
-          )}
         </SidebarMenuItem>
       )
     }

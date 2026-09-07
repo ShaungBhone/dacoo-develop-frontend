@@ -393,6 +393,7 @@ export function RecordTemplatesView() {
                       </Button>
                       <Button
                         render={<Link href={`/settings?tab=objects`} />}
+                        nativeButton={false}
                         variant="ghost"
                         size="sm"
                         className="text-xs text-muted-foreground"

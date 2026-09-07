@@ -8,6 +8,7 @@ import {
   CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
+  CircleDotIcon,
   ClockIcon,
   FlagIcon,
   MoreVerticalIcon,
@@ -633,6 +634,7 @@ export function ConversationDetailHeader({
 
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={handleMarkAsUnread}>
+                <CircleDotIcon className="size-4" />
                 <span>Mark as unread</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleToggleSpam}>

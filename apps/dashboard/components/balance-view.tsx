@@ -683,6 +683,7 @@ export function BalanceView() {
             <Button
               variant="link"
               className="w-fit px-0"
+              nativeButton={false}
               render={<Link href="/transactions" />}
             >
               View all transactions
