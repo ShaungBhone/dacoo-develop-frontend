@@ -24,6 +24,8 @@ export type Organization = {
   permissions?: string[]
   /** Whether the authenticated user owns this organization. */
   is_owner?: boolean
+  /** Whether this organization's plan allows creating custom roles and editing permissions. */
+  can_manage_custom_roles?: boolean
 }
 
 export type User = {

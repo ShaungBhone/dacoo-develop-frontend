@@ -59,6 +59,11 @@ export function ConversationDetailView({
   const { echo } = useEcho()
   const [messages, setMessages] = React.useState<ConversationMessage[]>([])
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(true)
+  const [isLoadingOlderMessages, setIsLoadingOlderMessages] =
+    React.useState(false)
+  const [nextMessageCursor, setNextMessageCursor] = React.useState<
+    string | null
+  >(null)
   const [isSending, setIsSending] = React.useState(false)
   const [sendError, setSendError] = React.useState<string | null>(null)
   const [isAssignMemberOpen, setIsAssignMemberOpen] = React.useState(false)
@@ -70,6 +75,12 @@ export function ConversationDetailView({
   )
   const [isAssignAiOpen, setIsAssignAiOpen] = React.useState(false)
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
+  const isLoadingOlderMessagesRef = React.useRef(false)
+  const shouldScrollToBottomRef = React.useRef(true)
+  const pendingScrollAdjustmentRef = React.useRef<{
+    scrollHeight: number
+    scrollTop: number
+  } | null>(null)
 
   const isMobile = useIsMobile()
   const panelRef = React.useRef<PanelImperativeHandle | null>(null)
@@ -136,14 +147,23 @@ export function ConversationDetailView({
   React.useEffect(() => {
     let isCurrent = true
 
+    void Promise.resolve().then(() => {
+      if (isCurrent) {
+        setIsLoadingMessages(true)
+        setNextMessageCursor(null)
+      }
+    })
+
     Promise.all([
       fetchConversationMessages(organizationId, conversation.id),
       fetchConversationNotes(organizationId, conversation.id).catch(() => []),
     ])
-      .then(([conversationMessages, notes]) => {
+      .then(([messagePage, notes]) => {
         if (isCurrent) {
+          shouldScrollToBottomRef.current = true
+          setNextMessageCursor(messagePage.nextCursor)
           setMessages(
-            [...conversationMessages, ...notes].sort(
+            [...messagePage.messages, ...notes].sort(
               (a, b) =>
                 new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
             )
@@ -162,12 +182,79 @@ export function ConversationDetailView({
     }
   }, [organizationId, conversation.id])
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const container = scrollContainerRef.current
-    if (container) {
-      container.scrollTop = container.scrollHeight
+
+    if (!container || isLoadingMessages) return
+
+    const adjustment = pendingScrollAdjustmentRef.current
+    if (adjustment) {
+      container.scrollTop =
+        container.scrollHeight - adjustment.scrollHeight + adjustment.scrollTop
+      pendingScrollAdjustmentRef.current = null
+      return
     }
-  }, [messages])
+
+    if (shouldScrollToBottomRef.current) {
+      container.scrollTop = container.scrollHeight
+      shouldScrollToBottomRef.current = false
+      requestAnimationFrame(() => {
+        if (container) {
+          container.scrollTop = container.scrollHeight
+        }
+      })
+    }
+  }, [isLoadingMessages, messages])
+
+  const loadOlderMessages = React.useCallback(async () => {
+    if (!nextMessageCursor || isLoadingOlderMessagesRef.current) return
+
+    isLoadingOlderMessagesRef.current = true
+    setIsLoadingOlderMessages(true)
+
+    try {
+      const page = await fetchConversationMessages(
+        organizationId,
+        conversation.id,
+        nextMessageCursor
+      )
+      const container = scrollContainerRef.current
+
+      if (container) {
+        pendingScrollAdjustmentRef.current = {
+          scrollHeight: container.scrollHeight,
+          scrollTop: container.scrollTop,
+        }
+      }
+
+      shouldScrollToBottomRef.current = false
+      setNextMessageCursor(page.nextCursor)
+      setMessages((current) => {
+        const existingIds = new Set(current.map((message) => message.id))
+        const olderMessages = page.messages.filter(
+          (message) => !existingIds.has(message.id)
+        )
+
+        return [...olderMessages, ...current].sort(
+          (a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
+        )
+      })
+    } catch {
+      // ignore
+    } finally {
+      isLoadingOlderMessagesRef.current = false
+      setIsLoadingOlderMessages(false)
+    }
+  }, [conversation.id, nextMessageCursor, organizationId])
+
+  const handleMessageScroll = React.useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      if (event.currentTarget.scrollTop <= 80) {
+        void loadOlderMessages()
+      }
+    },
+    [loadOlderMessages]
+  )
 
   React.useEffect(() => {
     if (conversation.unreadCount === 0) return
@@ -210,6 +297,7 @@ export function ConversationDetailView({
         }[]
         sent_at: string
       }) => {
+        shouldScrollToBottomRef.current = true
         setMessages((current) => {
           if (current.some((m) => m.id === event.message_id)) return current
           const attachments: MessageAttachment[] = (
@@ -275,6 +363,7 @@ export function ConversationDetailView({
               body: content,
               files: files.length > 0 ? files : undefined,
             })
+      shouldScrollToBottomRef.current = true
       setMessages((current) => [...current, message])
       if (type === "reply") onMessageSent(conversation.id, message.body)
     } catch {
@@ -367,11 +456,13 @@ export function ConversationDetailView({
 
       <div
         ref={scrollContainerRef}
+        onScroll={handleMessageScroll}
         className="scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-muted/50"
       >
         <ConversationMessages
           messages={messages}
           isLoading={isLoadingMessages}
+          isLoadingOlder={isLoadingOlderMessages}
           contactAvatarUrl={conversation.customer.avatarUrl}
           contactName={conversation.customer.displayName}
           aiHandler={conversation.aiHandler}

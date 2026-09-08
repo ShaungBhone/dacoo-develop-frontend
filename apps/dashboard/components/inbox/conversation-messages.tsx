@@ -4,6 +4,7 @@ import { CheckCheckIcon, FileTextIcon } from "@/components/ui/icons"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import {
   Message,
@@ -25,6 +26,7 @@ import type {
 interface ConversationMessagesProps {
   messages: ConversationMessage[]
   isLoading: boolean
+  isLoadingOlder?: boolean
   contactAvatarUrl: string | null
   contactName: string
   aiHandler: AiHandlerState
@@ -151,6 +153,7 @@ type Row =
 export function ConversationMessages({
   messages,
   isLoading,
+  isLoadingOlder,
   contactAvatarUrl,
   contactName,
   aiHandler,
@@ -213,6 +216,12 @@ export function ConversationMessages({
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 py-7 px-6">
+      {isLoadingOlder ? (
+        <div className="flex justify-center py-2" aria-live="polite">
+          <Spinner className="text-muted-foreground" />
+          <span className="sr-only">Loading older messages</span>
+        </div>
+      ) : null}
       <MessageGroup className="gap-6">
         {rows.map(({ row, showDivider }) => {
           if (row.kind === "event") {

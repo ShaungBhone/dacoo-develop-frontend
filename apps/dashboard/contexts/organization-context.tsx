@@ -4,6 +4,7 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useState,
   ReactNode,
 } from "react"
@@ -19,8 +20,16 @@ type OrganizationContextType = {
   setActiveOrganizationId: (id: number) => void
   /** Whether the current user owns the active organization. */
   isOwner: boolean
-  /** Whether the current user holds the given Shield permission in the active org. */
+  /** Whether the current user is an admin or owner. */
+  isAdmin: boolean
+  /** Check if the current user has a specific permission in the active organization. */
   can: (permission: string) => boolean
+  /** Check if the current user has any of the specified permissions. */
+  canAny: (permissions: string[]) => boolean
+  /** Check if the current user has all of the specified permissions. */
+  canAll: (permissions: string[]) => boolean
+  /** Whether the active organization's plan allows managing custom roles and permissions. */
+  canManageCustomRoles: boolean
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(
@@ -29,13 +38,17 @@ const OrganizationContext = createContext<OrganizationContextType | undefined>(
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
-  const organizations = user?.organizations ?? []
+  const organizations = useMemo(
+    () => user?.organizations ?? [],
+    [user?.organizations]
+  )
   const [activeOrganizationId, setActiveOrganizationIdState] = useState<
     number | null
   >(null)
 
   useEffect(() => {
     if (organizations.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveOrganizationIdState(null)
       return
     }
@@ -62,9 +75,33 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     organizations.find((org) => org.id === activeOrganizationId) ?? null
 
   const isOwner = activeOrganization?.is_owner ?? false
+  const isAdmin = isOwner || activeOrganization?.role === "admin"
+  const canManageCustomRoles = activeOrganization?.can_manage_custom_roles ?? false
 
-  const can = (permission: string): boolean =>
-    activeOrganization?.permissions?.includes(permission) ?? false
+  const can = (permission: string): boolean => {
+    if (isOwner) {
+      return true
+    }
+    return activeOrganization?.permissions?.includes(permission) ?? false
+  }
+
+  const canAny = (permissions: string[]): boolean => {
+    if (isOwner) {
+      return true
+    }
+    return permissions.some(
+      (p) => activeOrganization?.permissions?.includes(p) ?? false
+    )
+  }
+
+  const canAll = (permissions: string[]): boolean => {
+    if (isOwner) {
+      return true
+    }
+    return permissions.every(
+      (p) => activeOrganization?.permissions?.includes(p) ?? false
+    )
+  }
 
   return (
     <OrganizationContext.Provider
@@ -74,7 +111,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         activeOrganizationId,
         setActiveOrganizationId,
         isOwner,
+        isAdmin,
         can,
+        canAny,
+        canAll,
+        canManageCustomRoles,
       }}
     >
       {children}

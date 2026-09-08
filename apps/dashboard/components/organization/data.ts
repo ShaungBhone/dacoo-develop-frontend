@@ -8,6 +8,35 @@ export type RoleOption = {
   label: string
 }
 
+/** Detailed role model with granted permissions and active member counts. */
+export type RoleDetail = {
+  id: string
+  name: string
+  label: string
+  description: string | null
+  is_system: boolean
+  is_owner: boolean
+  assignable: boolean
+  members_count: number
+  permission_keys: string[]
+  permissions: { key: string; label: string; enabled: boolean }[]
+}
+
+/** An item in the permission catalog with key, title, and descriptive summary. */
+export type PermissionItem = {
+  key: string
+  label: string
+  description: string
+}
+
+/** A functional module grouping related permissions for the permission matrix. */
+export type PermissionModule = {
+  key: string
+  label: string
+  description: string
+  permissions: PermissionItem[]
+}
+
 /** An active organization member (backed by a real user account). */
 export type MemberRow = {
   kind: "member"

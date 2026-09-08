@@ -28,6 +28,7 @@ import { SavedRepliesView } from "@/components/settings/saved-replies-view"
 import { SettingsStub } from "@/components/settings/settings-stub"
 import { TagsView } from "@/components/settings/tags-view"
 import { TeamView } from "@/components/settings/team-view"
+import { RolesView } from "@/components/settings/roles-view"
 import { WorkspaceProfileView } from "@/components/settings/workspace-profile-view"
 import { Button } from "@/components/ui/button"
 import {
@@ -155,6 +156,10 @@ function SettingsContent({ activeTab }: { activeTab: SettingsTab }) {
     return <TeamView />
   }
 
+  if (activeTab === "roles") {
+    return <RolesView />
+  }
+
   if (activeTab === "integrations") {
     return <IntegrationsView />
   }
@@ -224,7 +229,8 @@ export function SettingsWorkspace() {
   const isFullHeightTableTab =
     activeTab === "teammate" ||
     activeTab === "tags" ||
-    activeTab === "objects"
+    activeTab === "objects" ||
+    activeTab === "roles"
 
   const settingsContent = (
     <div

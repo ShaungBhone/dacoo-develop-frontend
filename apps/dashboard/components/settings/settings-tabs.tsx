@@ -11,6 +11,7 @@ import {
   MessageSquareTextIcon,
   SettingsIcon,
   ShieldCheckIcon,
+  ShieldIcon,
   TagIcon,
   UserRoundCheckIcon,
   UserRoundIcon,
@@ -21,6 +22,7 @@ import type { LucideIcon } from "@/components/ui/icons"
 export type SettingsTabSlug =
   | "general"
   | "teammate"
+  | "roles"
   | "office-hours"
   | "security"
   | "assignments"
@@ -50,6 +52,7 @@ export const SETTINGS_TAB_GROUPS: readonly {
     tabs: [
       { slug: "general", label: "General", icon: SettingsIcon },
       { slug: "teammate", label: "Teammates", icon: UsersIcon },
+      { slug: "roles", label: "Roles", icon: ShieldIcon },
       { slug: "office-hours", label: "Office hours", icon: Clock3Icon },
       { slug: "security", label: "Security", icon: ShieldCheckIcon },
     ],

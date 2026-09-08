@@ -386,6 +386,11 @@ export type ConversationMessage = {
   sentAt: string
 }
 
+export type ConversationMessagePage = {
+  messages: ConversationMessage[]
+  nextCursor: string | null
+}
+
 type RawMessageAttachment = {
   id: number | string
   filename: string
@@ -461,12 +466,20 @@ function mapConversationNote(raw: RawConversationNote): ConversationMessage {
 /** GET .../conversations/{id}/messages — returned oldest first for display. */
 export async function fetchConversationMessages(
   organizationId: number | string,
-  conversationId: number | string
-): Promise<ConversationMessage[]> {
-  const response = await apiFetch<{ data: RawMessage[] }>(
-    `/api/v1/organizations/${organizationId}/conversations/${conversationId}/messages`
+  conversationId: number | string,
+  cursor?: string
+): Promise<ConversationMessagePage> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""
+  const response = await apiFetch<{
+    data: RawMessage[]
+    meta: { next_cursor: string | null }
+  }>(
+    `/api/v1/organizations/${organizationId}/conversations/${conversationId}/messages${query}`
   )
-  return response.data.map(mapMessage).reverse()
+  return {
+    messages: response.data.map(mapMessage).reverse(),
+    nextCursor: response.meta.next_cursor,
+  }
 }
 
 /** GET .../conversations/{id}/notes — returned newest first for display. */
@@ -609,4 +622,3 @@ export async function fetchInboxes(
     provider: item.provider ?? "unknown",
   }))
 }
-

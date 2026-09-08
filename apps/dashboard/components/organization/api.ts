@@ -3,6 +3,8 @@ import type {
   InvitationRow,
   MemberRow,
   OrgListRow,
+  PermissionModule,
+  RoleDetail,
   RoleOption,
 } from "@/components/organization/data"
 
@@ -161,4 +163,79 @@ export async function removeRow(
     return
   }
   await removeMember(organizationId, row.id)
+}
+
+/* -------------------------------------------------------------------------- */
+/*                         Roles & Permissions API                            */
+/* -------------------------------------------------------------------------- */
+
+/** GET .../roles — returns all organization roles with permissions and member counts. */
+export async function fetchRoles(
+  organizationId: number
+): Promise<RoleDetail[]> {
+  const res = await apiFetch<{
+    data: RoleDetail[]
+    meta?: { can_manage_custom_roles?: boolean }
+  }>(`/api/v1/organizations/${organizationId}/roles`)
+  return res.data
+}
+
+/** GET .../roles — returns all organization roles along with plan entitlement meta. */
+export async function fetchRolesWithMeta(
+  organizationId: number
+): Promise<{ roles: RoleDetail[]; canManageCustomRoles: boolean }> {
+  const res = await apiFetch<{
+    data: RoleDetail[]
+    meta?: { can_manage_custom_roles?: boolean }
+  }>(`/api/v1/organizations/${organizationId}/roles`)
+  return {
+    roles: res.data,
+    canManageCustomRoles: res.meta?.can_manage_custom_roles ?? false,
+  }
+}
+
+/** GET .../roles/catalog — returns the module-grouped permission catalog. */
+export async function fetchPermissionCatalog(
+  organizationId: number
+): Promise<PermissionModule[]> {
+  const res = await apiFetch<{ data: PermissionModule[] }>(
+    `/api/v1/organizations/${organizationId}/roles/catalog`
+  )
+  return res.data
+}
+
+/** POST .../roles — create a new custom role. */
+export async function createRole(
+  organizationId: number,
+  input: { name: string; description?: string; permissions: string[] }
+): Promise<RoleDetail> {
+  const res = await apiFetch<{ data: RoleDetail }>(
+    `/api/v1/organizations/${organizationId}/roles`,
+    { method: "POST", body: input }
+  )
+  return res.data
+}
+
+/** PATCH .../roles/{roleId} — update an organization role. */
+export async function updateRole(
+  organizationId: number,
+  roleId: string,
+  input: { name?: string; description?: string; permissions?: string[] }
+): Promise<RoleDetail> {
+  const res = await apiFetch<{ data: RoleDetail }>(
+    `/api/v1/organizations/${organizationId}/roles/${roleId}`,
+    { method: "PATCH", body: input }
+  )
+  return res.data
+}
+
+/** DELETE .../roles/{roleId} — delete an unused custom role. */
+export async function deleteRole(
+  organizationId: number,
+  roleId: string
+): Promise<void> {
+  await apiFetch(
+    `/api/v1/organizations/${organizationId}/roles/${roleId}`,
+    { method: "DELETE" }
+  )
 }

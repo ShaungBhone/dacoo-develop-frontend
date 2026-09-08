@@ -39,3 +39,41 @@ Ensure all `<SheetContent>` instances include Radix portal overlay guards (`onPo
 
 # Button & UI Component Conventions
 - **Outline Buttons**: When creating or styling outline buttons across the application, follow the ReUI `@reui/c-button-18` pattern (`bunx --bun shadcn@latest add @reui/c-button-18`) and standard shadcn button variants instead of bespoke ad-hoc CSS utility classes.
+
+# ReUI DataGrid Loading & Skeleton Conventions
+When implementing loading states for tables and data grids built with `@reui/data-grid`, follow the ReUI `@reui/c-data-grid-21` pattern (`bunx --bun shadcn@latest add @reui/c-data-grid-21`) instead of custom full-table spinners or un-skeletoned states.
+
+### Guidelines:
+1. **Pass `isLoading` to `<DataGrid>`**:
+   Always pass the loading boolean to `<DataGrid isLoading={isLoading} ...>`. When `true`, `<DataGridTable>` automatically renders `pagination.pageSize` rows of `<DataGridTableBodyRowSkeleton>`.
+2. **Define `meta.skeleton` on Every Column**:
+   In each TanStack table `ColumnDef`, define `meta.skeleton` matching the expected cell geometry:
+   - **Text / ID / Badge Columns**:
+     ```tsx
+     meta: {
+       skeleton: <Skeleton className="h-5 w-20" />,
+     }
+     ```
+   - **Avatar / Entity Combo Columns**:
+     ```tsx
+     meta: {
+       skeleton: (
+         <div className="flex items-center gap-3">
+           <Skeleton className="size-8 rounded-full" />
+           <div className="space-y-1">
+             <Skeleton className="h-4 w-28" />
+             <Skeleton className="h-3 w-16" />
+           </div>
+         </div>
+       ),
+     }
+     ```
+   - **Expand / Action Buttons**:
+     ```tsx
+     meta: {
+       skeleton: <Skeleton className="size-6 rounded-md" />,
+     }
+     ```
+3. **Prevent Layout Shifts**:
+   Do not replace the entire table card or container with a centered spinner while loading initial data. Keep the toolbar, headers, and container stable while the skeleton rows shimmer.
+
