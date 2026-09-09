@@ -49,6 +49,7 @@ export type NavItem = {
 
 export type NavGroup = {
   group: string
+  action?: React.ReactNode
   items: NavItem[]
 }
 
@@ -142,6 +143,7 @@ export function Navigation({ navGroups, projects = [] }: NavigationProps) {
       {navGroups.map((navGroup) => (
         <SidebarGroup key={navGroup.group}>
           <SidebarGroupLabel>{navGroup.group}</SidebarGroupLabel>
+          {navGroup.action}
           <SidebarMenu>
             {navGroup.items.map((item) => renderNavItem(item))}
           </SidebarMenu>

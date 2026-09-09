@@ -1,13 +1,17 @@
 "use client"
 
 import * as React from "react"
+// import Link from "next/link"
 import {
   ArrowLeftIcon,
   ChevronRightIcon,
   CircleCheckBigIcon,
+  // FolderIcon,
+  // FolderPlusIcon,
   ListPlusIcon,
   MailIcon,
   PencilIcon,
+  // PlusIcon,
   SearchIcon,
   StarIcon,
   StickyNoteIcon,
@@ -28,6 +32,16 @@ import { deleteRecordAttributeImage, uploadRecordAttributeImage } from "@/compon
 import { ObjectGlyph } from "@/components/records/object-icon"
 import { RecordFieldRow } from "@/components/records/record-field-row"
 import { Button } from "@/components/ui/button"
+// Collections feature - commented out for now, to be re-enabled in future
+// import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+// import {
+//   fetchRecordCollections,
+//   fetchCollections,
+//   attachRecordToCollection,
+//   detachRecordFromCollection,
+//   type Collection,
+// } from "@/components/records/collections-api"
+// import { CreateCollectionDialog } from "@/components/records/create-collection-dialog"
 import {
   InputGroup,
   InputGroupAddon,
@@ -141,7 +155,7 @@ function RecordImageField({
     try {
       await uploadRecordAttributeImage(organizationId, record.id, object.id, attribute.id, file)
       await onChanged()
-    } catch (error) {
+    } catch {
       toast.error("Couldn’t upload image.")
     } finally { setBusy(false) }
   }
@@ -187,6 +201,54 @@ export function RecordDetailPanel({
 }) {
   const [showAll, setShowAll] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
+  // Collections feature - commented out for now, to be re-enabled in future
+  // const [recordCollections, setRecordCollections] = React.useState<Collection[]>([])
+  // const [availableCollections, setAvailableCollections] = React.useState<Collection[]>([])
+  // const [addPopoverOpen, setAddPopoverOpen] = React.useState(false)
+  // const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
+
+  // React.useEffect(() => {
+  //   let active = true
+  //   if (!organizationId || !record.id) return
+  //   Promise.all([
+  //     fetchRecordCollections(organizationId, record.id),
+  //     fetchCollections(organizationId, object?.slug),
+  //   ])
+  //     .then(([mine, available]) => {
+  //       if (!active) return
+  //       setRecordCollections(mine)
+  //       setAvailableCollections(available)
+  //     })
+  //     .catch((e) => {
+  //       console.error("Failed to load record collections", e)
+  //     })
+  //   return () => {
+  //     active = false
+  //   }
+  // }, [organizationId, record.id, object])
+
+  // const handleAttach = async (collectionId: string) => {
+  //   try {
+  //     const attached = await attachRecordToCollection(organizationId, record.id, collectionId)
+  //     setRecordCollections((prev) => [...prev.filter((c) => c.id !== attached.id), attached])
+  //     window.dispatchEvent(new CustomEvent("record-collections-changed"))
+  //     toast.success(`Added to ${attached.name}`)
+  //     setAddPopoverOpen(false)
+  //   } catch {
+  //     toast.error("Failed to add to collection")
+  //   }
+  // }
+
+  // const handleDetach = async (collectionId: string, collectionName: string) => {
+  //   try {
+  //     await detachRecordFromCollection(organizationId, record.id, collectionId)
+  //     setRecordCollections((prev) => prev.filter((c) => c.id !== collectionId))
+  //     window.dispatchEvent(new CustomEvent("record-collections-changed"))
+  //     toast.success(`Removed from ${collectionName}`)
+  //   } catch {
+  //     toast.error("Failed to remove from collection")
+  //   }
+  // }
 
   const visibleAttributes = React.useMemo(() => {
     if (!showAll) {
@@ -310,7 +372,7 @@ export function RecordDetailPanel({
           <div className="flex-1 min-h-0 overflow-y-auto py-2 flex flex-col gap-y-0.5">
             {visibleAttributes.length === 0 ? (
               <div className="py-8 text-center text-xs text-muted-foreground">
-                No attributes matching "{searchQuery}"
+                No attributes matching &quot;{searchQuery}&quot;
               </div>
             ) : (
               visibleAttributes.map(renderField)
@@ -379,6 +441,13 @@ export function RecordDetailPanel({
           </div>
         </div>
       )}
+
+      {/* <CreateCollectionDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        defaultObjectId={object?.id}
+        onCreated={(newCol) => handleAttach(newCol.id)}
+      /> */}
     </div>
   )
 }

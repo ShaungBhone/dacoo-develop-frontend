@@ -10,6 +10,7 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  // SidebarGroupAction,
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar"
@@ -26,11 +27,17 @@ import {
   WalletIcon,
   ArrowLeftRightIcon,
   HomeIcon,
+  WorkflowIcon,
+  // PlusIcon, // For Collections (commented out for now)
+  // FolderIcon,
 } from "@/components/ui/icons"
 
 import { useActiveOrganization } from "@/hooks/use-active-organization"
 import { fetchObjects, type RecordObject } from "@/components/records/api"
 import { ObjectGlyph } from "@/components/records/object-icon"
+// Collections feature - commented out for now, to be re-enabled in future
+// import { fetchCollections, type Collection } from "@/components/records/collections-api"
+// import { CreateCollectionDialog } from "@/components/records/create-collection-dialog"
 
 // Navigation groups data for the inbox chat application.
 const data = {
@@ -55,6 +62,7 @@ const data = {
       groupKey: "aiAndAutomation",
       defaultGroup: "Automations",
       items: [
+        { title: "Workflows", url: "/workflows", icon: <WorkflowIcon /> },
         { title: "Agents", url: "/agents", icon: <BotIcon /> },
         { title: "Datasets", url: "/datasets", icon: <DatabaseIcon /> },
         {
@@ -96,6 +104,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const organization = useActiveOrganization()
   const [objects, setObjects] = React.useState<RecordObject[]>([])
+  // Collections feature - commented out for now, to be re-enabled in future
+  // const [collections, setCollections] = React.useState<Collection[]>([])
+  // const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
 
   const loadObjects = React.useCallback(() => {
     if (!organization) return
@@ -108,15 +119,24 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       })
   }, [organization])
 
-  // The Records group is generated from the workspace's own schema, so a
-  // custom object appears in the sidebar the moment it is created.
+  // const loadCollections = React.useCallback(() => {
+  //   if (!organization) return
+  //   fetchCollections(organization.id)
+  //     .then(setCollections)
+  //     .catch(() => {})
+  // }, [organization])
+
+  // The Records group is generated from the workspace's own schema
   React.useEffect(() => {
     loadObjects()
+    // loadCollections()
     window.addEventListener("record-templates-installed", loadObjects)
     window.addEventListener("record-objects-changed", loadObjects)
+    // window.addEventListener("record-collections-changed", loadCollections)
     return () => {
       window.removeEventListener("record-templates-installed", loadObjects)
       window.removeEventListener("record-objects-changed", loadObjects)
+      // window.removeEventListener("record-collections-changed", loadCollections)
     }
   }, [loadObjects])
 
@@ -139,6 +159,36 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     [objects]
   )
 
+  // Collections group - commented out for now, to be re-enabled in future
+  /*
+  const collectionsGroup = React.useMemo(
+    () => ({
+      group: "Collections",
+      action: (
+        <SidebarGroupAction
+          title="Create Collection"
+          onClick={() => setCreateDialogOpen(true)}
+          className="cursor-pointer"
+        >
+          <PlusIcon className="size-3" />
+          <span className="sr-only">Create Collection</span>
+        </SidebarGroupAction>
+      ),
+      items: collections.map((col) => ({
+        title: col.name,
+        url: `/collections/${col.slug}`,
+        icon: (
+          <FolderIcon
+            className="size-4 shrink-0"
+            style={{ color: col.iconColor ?? undefined }}
+          />
+        ),
+      })),
+    }),
+    [collections]
+  )
+  */
+
   const translatedNavGroups = React.useMemo(() => {
     return data.navGroups.map((group) => ({
       group: t(`sidebar.groups.${group.groupKey}`, {
@@ -155,21 +205,34 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const navGroups = React.useMemo(() => {
     const [workspaceGroup, communicationGroup, ...restGroups] = translatedNavGroups
-    return [workspaceGroup, communicationGroup, recordsGroup, ...restGroups].filter(Boolean)
+    return [
+      workspaceGroup,
+      communicationGroup,
+      recordsGroup,
+      // collectionsGroup, // Temporarily commented out for future release
+      ...restGroups,
+    ].filter(Boolean)
   }, [recordsGroup, translatedNavGroups])
 
   return (
-    <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
-        <SidebarProfile />
-      </SidebarHeader>
-      <SidebarContent>
-        <Navigation navGroups={navGroups} />
-      </SidebarContent>
-      <SidebarFooter>
-        <HeaderProfileMenu />
-      </SidebarFooter>
-      <SidebarRail />
-    </Sidebar>
+    <>
+      <Sidebar collapsible="icon" {...props}>
+        <SidebarHeader>
+          <SidebarProfile />
+        </SidebarHeader>
+        <SidebarContent>
+          <Navigation navGroups={navGroups} />
+        </SidebarContent>
+        <SidebarFooter>
+          <HeaderProfileMenu />
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+
+      {/* <CreateCollectionDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+      /> */}
+    </>
   )
 }

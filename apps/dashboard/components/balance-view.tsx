@@ -169,7 +169,6 @@ function TotalBalanceHero({
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
                 onClick={onOpenBalance}
               >
                 <PlusIcon data-icon="inline-start" />
@@ -179,7 +178,7 @@ function TotalBalanceHero({
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger render={<span className="w-fit" />}>
-                    <Button type="button" variant="outline" size="sm" disabled>
+                    <Button type="button" variant="outline" disabled>
                       <PlusIcon data-icon="inline-start" />
                       Open balance
                     </Button>
@@ -194,7 +193,6 @@ function TotalBalanceHero({
             )}
             <Button
               type="button"
-              size="sm"
               variant="outline"
               onClick={() => onMoveFundsAction("deposit")}
             >
@@ -203,7 +201,6 @@ function TotalBalanceHero({
             </Button>
             <Button
               type="button"
-              size="sm"
               variant="outline"
               onClick={() => onMoveFundsAction("exchange")}
             >
@@ -212,7 +209,6 @@ function TotalBalanceHero({
             </Button>
             <Button
               type="button"
-              size="sm"
               variant="outline"
               onClick={() => onMoveFundsAction("fund-card")}
             >

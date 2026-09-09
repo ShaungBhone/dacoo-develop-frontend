@@ -77,3 +77,25 @@ When implementing loading states for tables and data grids built with `@reui/dat
 3. **Prevent Layout Shifts**:
    Do not replace the entire table card or container with a centered spinner while loading initial data. Keep the toolbar, headers, and container stable while the skeleton rows shimmer.
 
+# ReUI Dialog & Form Modal Conventions
+When building dialogs, modals, and modal forms, always follow Dacoo's established ReUI component architecture rather than ad-hoc HTML tags or external one-off designs:
+
+1. **Standard Dialog Shell**:
+   - Use `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`, and `DialogFooter` from `@/components/ui/dialog`.
+   - Standard width: `sm:max-w-md` or `sm:max-w-lg`.
+   - Never override `DialogContent` with bespoke padding or arbitrary header breadcrumbs unless specifically structured as a wizard.
+
+2. **Form Structure**:
+   - Group fields using `<FieldGroup className="gap-4 py-2">` from `@/components/ui/field`.
+   - Wrap each input with `<Field>`, `<FieldLabel>`, and optional `<FieldDescription>` or `<FieldError>`.
+   - Never use raw `<label>` or unstyled container divs for form inputs.
+
+3. **Buttons & Footer Actions**:
+   - Follow standard `DialogFooter` layout with right-aligned action buttons:
+     - Secondary action: `<Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>`
+     - Primary action: `<Button type="submit" ...>Action</Button>`
+   - Do not inject arbitrary keyboard shortcut badges (`<Kbd>`) or custom bottom action bars into standard modal footers.
+
+4. **Reference Implementations**:
+   - Standard create dialogs: see `workspace-create-dialog.tsx` and `stage-edit-dialog.tsx`.
+
