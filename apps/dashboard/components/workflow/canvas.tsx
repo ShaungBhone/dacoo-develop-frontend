@@ -32,10 +32,9 @@ export function Canvas<
       <Background
         variant={BackgroundVariant.Dots}
         gap={16}
-        size={1}
-        color="var(--border)"
-        bgColor="var(--sidebar)"
-        className="dark:opacity-40"
+        size={1.2}
+        color="var(--canvas-dot)"
+        bgColor="var(--canvas)"
       />
       {children}
     </ReactFlow>

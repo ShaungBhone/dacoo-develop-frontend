@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Canvas } from "@/components/workflow/canvas"
 import { CanvasEmptyState } from "@/components/workflow/canvas-empty-state"
-import { Controls } from "@/components/workflow/controls"
+import { ControlButton, Controls } from "@/components/workflow/controls"
 import { Edge, type WorkflowEdgeData } from "@/components/workflow/edge"
 import {
   TemplateGalleryDialog,
@@ -44,15 +44,16 @@ import {
   type NodeChange,
   type NodeTypes,
   type Edge as ReactFlowEdge,
+  useReactFlow,
 } from "@xyflow/react"
 import {
-  ArrowDownIcon,
   CopyIcon,
   HistoryIcon,
   InfoIcon,
   Loader2Icon,
   PlayIcon,
   PlusIcon,
+  RotateCcwIcon,
   SaveIcon,
   SettingsIcon,
   Share2Icon,
@@ -86,6 +87,25 @@ type WorkflowDetailResponse = {
 type StepInsertionTarget = {
   parentId?: string
   branchId?: "true" | "false"
+}
+
+function ResetLayoutControlButton({ onReset }: { onReset: () => void }) {
+  const { fitView } = useReactFlow()
+
+  return (
+    <ControlButton
+      onClick={() => {
+        onReset()
+        window.requestAnimationFrame(() => {
+          void fitView({ padding: 0.25, duration: 250 })
+        })
+      }}
+      title="Reset layout"
+      aria-label="Reset layout"
+    >
+      <RotateCcwIcon className="size-3.5 text-muted-foreground" />
+    </ControlButton>
+  )
 }
 
 export default function WorkflowBuilderPage() {
@@ -471,11 +491,12 @@ export default function WorkflowBuilderPage() {
     [edges]
   )
 
-  // Auto-arrange all nodes from top to bottom
-  const handleAutoLayout = useCallback(() => {
+  // Reset all nodes layout to clean top-to-bottom arrangement
+  const handleResetLayout = useCallback(() => {
+    if (nodes.length === 0) return
     setNodes((nds) => layoutNodesTopToBottom(nds, edges))
-    toast.success("Workflow arranged top to bottom")
-  }, [edges])
+    toast.success("Layout reset")
+  }, [edges, nodes.length])
 
   // Node & Edge changes from React Flow
   const onNodesChange = useCallback(
@@ -898,20 +919,12 @@ export default function WorkflowBuilderPage() {
                 className="h-full w-full"
                 fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
               >
-                <Controls position="bottom-left" />
+                <Controls position="bottom-left">
+                  <ResetLayoutControlButton onReset={handleResetLayout} />
+                </Controls>
 
                 {/* Floating Canvas Toolbar */}
                 <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAutoLayout}
-                    className="bg-card hover:bg-muted/60 text-xs gap-1.5 shadow-2xs rounded-lg"
-                    title="Arrange workflow top-to-bottom"
-                  >
-                    <ArrowDownIcon className="size-3.5 text-muted-foreground" />
-                    Auto layout
-                  </Button>
 
                   <Button
                     size="sm"

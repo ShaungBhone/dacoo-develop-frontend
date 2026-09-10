@@ -37,7 +37,8 @@ describe("getChildNodePosition", () => {
   })
 
   it("leaves enough vertical clearance between nodes", () => {
-    expect(NODE_VERTICAL_GAP).toBeGreaterThan(200)
+    expect(NODE_VERTICAL_GAP).toBeGreaterThan(120)
+    expect(NODE_VERTICAL_GAP).toBeLessThan(220)
   })
 
   it("falls back to the root anchor when there is no parent", () => {

@@ -309,7 +309,8 @@ export function WorkflowCard({
           }
         }}
         className={cn(
-          "w-full max-w-sm cursor-pointer bg-muted/50 outline-hidden",
+          "w-full max-w-sm cursor-pointer bg-amber-50 outline-hidden",
+          "shadow-xs dark:shadow-black/60",
           selected && "border-ring ring-1 ring-ring",
           nodeData.status === "running" && "border-sky-500",
           nodeData.status === "failed" && "border-destructive"

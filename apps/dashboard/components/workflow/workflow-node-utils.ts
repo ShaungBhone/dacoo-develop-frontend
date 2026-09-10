@@ -5,7 +5,7 @@ export type WorkflowBranchId = "true" | "false"
 export type WorkflowPosition = { x: number; y: number }
 
 /** Vertical clearance between cards in the top-to-bottom workflow. */
-export const NODE_VERTICAL_GAP = 280
+export const NODE_VERTICAL_GAP = 180
 
 /** True/False branches fan horizontally while continuing downward. */
 export const BRANCH_HORIZONTAL_OFFSET = 190

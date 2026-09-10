@@ -1,12 +1,12 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Controls as ControlsPrimitive } from "@xyflow/react"
+import { ControlButton, Controls as ControlsPrimitive } from "@xyflow/react"
 import type { ComponentProps } from "react"
 
 export type ControlsProps = ComponentProps<typeof ControlsPrimitive>
 
-export const Controls = ({ className, ...props }: ControlsProps) => (
+export const Controls = ({ className, children, ...props }: ControlsProps) => (
   <ControlsPrimitive
     className={cn(
       "gap-px overflow-hidden rounded-md border bg-card p-1 shadow-none!",
@@ -14,5 +14,9 @@ export const Controls = ({ className, ...props }: ControlsProps) => (
       className
     )}
     {...props}
-  />
+  >
+    {children}
+  </ControlsPrimitive>
 )
+
+export { ControlButton }
