@@ -5,12 +5,26 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-import { cn } from "@/lib/utils"
 import {
+  Item,
+  ItemContent,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  BotIcon,
   ClockIcon,
   FileEditIcon,
   FilePlusIcon,
   FolderPlusIcon,
+  GitBranchIcon,
   LayersIcon,
   MessageSquareIcon,
   PhoneIcon,
@@ -18,6 +32,7 @@ import {
   SearchIcon,
   SendIcon,
   TerminalIcon,
+  XIcon,
 } from "lucide-react"
 import { useMemo, useState } from "react"
 
@@ -202,63 +217,145 @@ const triggerCatalog: TriggerDefinition[] = [
   },
 ]
 
-type TriggerSelectionSidebarProps = {
-  open: boolean
-  onClose?: () => void
-  onSelectTrigger: (trigger: TriggerDefinition) => void
+export type StepDefinition = {
+  id: string
+  title: string
+  description: string
+  category: "Records" | "Logic" | "AI" | "Messaging"
+  icon: typeof FilePlusIcon
+  tone: Exclude<TriggerDefinition["tone"], "trigger">
 }
 
-export function TriggerSelectionSidebar({
+const stepCatalog: StepDefinition[] = [
+  {
+    id: "record.action",
+    title: "Record Action",
+    description: "Create or update CRM records",
+    category: "Records",
+    icon: FilePlusIcon,
+    tone: "action",
+  },
+  {
+    id: "condition.branch",
+    title: "Condition Branch",
+    description: "True / False conditional routing",
+    category: "Logic",
+    icon: GitBranchIcon,
+    tone: "condition",
+  },
+  {
+    id: "ai.specialist",
+    title: "AI Specialist",
+    description: "Extract fields and generate responses",
+    category: "AI",
+    icon: BotIcon,
+    tone: "ai",
+  },
+  {
+    id: "channel.message",
+    title: "Channel Message",
+    description: "Post to Viber, Telegram, or Messenger",
+    category: "Messaging",
+    icon: SendIcon,
+    tone: "channel",
+  },
+]
+
+type WorkflowBlockSelectionSidebarProps = {
+  open: boolean
+  mode: "all" | "step"
+  onClose: () => void
+  onSelectTrigger: (trigger: TriggerDefinition) => void
+  onSelectStep: (step: StepDefinition) => void
+}
+
+export function WorkflowBlockSelectionSidebar({
   open,
+  mode,
+  onClose,
   onSelectTrigger,
-}: TriggerSelectionSidebarProps) {
+  onSelectStep,
+}: WorkflowBlockSelectionSidebarProps) {
   const [search, setSearch] = useState("")
 
-  const filteredTriggers = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return triggerCatalog
-    return triggerCatalog.filter(
-      (item) =>
-        item.title.toLowerCase().includes(q) ||
-        (item.description && item.description.toLowerCase().includes(q)) ||
-        item.category.toLowerCase().includes(q)
-    )
-  }, [search])
-
   const categories = useMemo(() => {
-    const order: TriggerDefinition["category"][] = [
+    const q = search.trim().toLowerCase()
+    const entries: Array<
+      | { kind: "trigger"; item: TriggerDefinition }
+      | { kind: "step"; item: StepDefinition }
+    > = [
+      ...(mode === "all"
+        ? triggerCatalog.map((item) => ({ kind: "trigger" as const, item }))
+        : []),
+      ...stepCatalog.map((item) => ({ kind: "step" as const, item })),
+    ]
+    const categoryOrder = [
       "Records",
-      "Collections",
+      "Lists",
       "Data",
-      "Messaging & Inbound",
+      "Logic",
+      "AI",
+      "Messaging",
       "Schedule",
     ]
-    const map = new Map<string, TriggerDefinition[]>()
-    for (const item of filteredTriggers) {
-      const list = map.get(item.category) ?? []
-      list.push(item)
-      map.set(item.category, list)
+    const categoryMap = new Map<string, typeof entries>()
+
+    for (const entry of entries) {
+      const category =
+        entry.item.category === "Collections"
+          ? "Lists"
+          : entry.item.category === "Messaging & Inbound"
+            ? "Messaging"
+            : entry.item.category
+      const matchesSearch =
+        !q ||
+        entry.item.title.toLowerCase().includes(q) ||
+        Boolean(entry.item.description?.toLowerCase().includes(q)) ||
+        category.toLowerCase().includes(q)
+
+      if (matchesSearch) {
+        const categoryEntries = categoryMap.get(category) ?? []
+        categoryEntries.push(entry)
+        categoryMap.set(category, categoryEntries)
+      }
     }
-    return order
-      .filter((cat) => map.has(cat))
-      .map((cat) => [cat, map.get(cat)!] as const)
-  }, [filteredTriggers])
+
+    return categoryOrder
+      .filter((category) => categoryMap.has(category))
+      .map((category) => [category, categoryMap.get(category)!] as const)
+  }, [mode, search])
 
   if (!open) return null
 
   return (
     <aside
-      aria-label="Select trigger sidebar"
+      aria-label={
+        mode === "all" ? "Add block sidebar" : "Add next step sidebar"
+      }
       className="flex flex-col w-80 shrink-0 border-l border-border bg-background/95 backdrop-blur-xs transition-all duration-200 overflow-hidden"
     >
       {/* Unified Header & Search matching Attio */}
       <div className="p-4 pb-2">
-        <h2 className="text-sm font-semibold text-foreground tracking-tight">
-          Select trigger
-        </h2>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Pick an event to start this workflow
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground tracking-tight">
+              {mode === "all" ? "Add block" : "Add next step"}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {mode === "all"
+                ? "Select a trigger or step"
+                : "Select the next step in this path"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Close selection sidebar"
+          >
+            <XIcon className="size-4" />
+          </button>
+        </div>
 
         {/* Dacoo InputGroup Search Input */}
         <InputGroup className="h-8 mt-3 bg-card/60">
@@ -268,49 +365,73 @@ export function TriggerSelectionSidebar({
           <InputGroupInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search triggers…"
+            placeholder={
+              mode === "all" ? "Search blocks…" : "Search steps…"
+            }
             className="text-xs"
           />
         </InputGroup>
       </div>
 
-      {/* Grouped Trigger Items matching Attio single-line card pills */}
+      {/* Grouped workflow items */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3 scrollbar-thin">
         {categories.length === 0 ? (
           <div className="py-8 text-center text-xs text-muted-foreground">
-            No matching triggers found.
+            No matching blocks found.
           </div>
         ) : (
-          categories.map(([category, items]) => (
-            <div key={category}>
-              {/* Soft Title Case Category Header */}
-              <div className="px-1 text-xs font-normal text-muted-foreground/80 mb-1.5 mt-2">
-                {category === "Collections" ? "Lists" : category}
-              </div>
+          categories.map(([category, entries]) => (
+            <section key={category}>
+              <h3 className="px-1 text-xs font-normal text-muted-foreground/80 mb-1.5 mt-2">
+                {category}
+              </h3>
 
-              {/* Stack of Attio-style Card Pills */}
-              <div className="space-y-1.5">
-                {items.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => onSelectTrigger(item)}
-                      className={cn(
-                        "w-full text-left flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border border-border/60 bg-card",
-                        "hover:bg-muted/70 hover:border-border transition-colors cursor-pointer group shadow-2xs"
-                      )}
-                    >
-                      <Icon className="size-4 text-foreground/80 shrink-0 transition-transform group-hover:scale-105" />
-                      <span className="text-xs font-medium text-foreground truncate flex-1">
-                        {item.title}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
+              <TooltipProvider delay={200}>
+                <ItemGroup className="gap-1.5">
+                  {entries.map((entry) => {
+                    const Icon = entry.item.icon
+
+                    return (
+                      <Tooltip key={`${entry.kind}-${entry.item.id}`}>
+                        <TooltipTrigger
+                          render={
+                            <Item
+                              variant="outline"
+                              size="sm"
+                              render={<button type="button" />}
+                              onClick={() => {
+                                if (entry.kind === "trigger") {
+                                  onSelectTrigger(entry.item)
+                                } else {
+                                  onSelectStep(entry.item)
+                                }
+                              }}
+                              className="cursor-pointer flex-nowrap text-left hover:bg-muted/70"
+                            >
+                              <ItemMedia variant="icon">
+                                <Icon className="size-4 text-muted-foreground" />
+                              </ItemMedia>
+                              <ItemContent>
+                                <ItemTitle>{entry.item.title}</ItemTitle>
+                              </ItemContent>
+                            </Item>
+                          }
+                        />
+                        {entry.item.description ? (
+                          <TooltipContent
+                            side="left"
+                            align="center"
+                            className="max-w-64"
+                          >
+                            {entry.item.description}
+                          </TooltipContent>
+                        ) : null}
+                      </Tooltip>
+                    )
+                  })}
+                </ItemGroup>
+              </TooltipProvider>
+            </section>
           ))
         )}
       </div>

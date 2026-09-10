@@ -1,14 +1,6 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -16,18 +8,24 @@ import { Textarea } from "@/components/ui/textarea"
 import { Canvas } from "@/components/workflow/canvas"
 import { CanvasEmptyState } from "@/components/workflow/canvas-empty-state"
 import { Controls } from "@/components/workflow/controls"
-import { Edge } from "@/components/workflow/edge"
+import { Edge, type WorkflowEdgeData } from "@/components/workflow/edge"
 import {
   TemplateGalleryDialog,
 } from "@/components/workflow/template-gallery-dialog"
 import {
-  TriggerDefinition,
-  TriggerSelectionSidebar,
+  WorkflowBlockSelectionSidebar,
+  type StepDefinition,
+  type TriggerDefinition,
 } from "@/components/workflow/trigger-selection-sidebar"
 import {
   WorkflowCard,
   type WorkflowCardData,
 } from "@/components/workflow/workflow-card"
+import {
+  attachNodeCallbacks,
+  getChildNodePosition,
+  ROOT_NODE_POSITION,
+} from "@/components/workflow/workflow-node-utils"
 import { WorkflowRunsList } from "@/components/workflow/workflow-history"
 import { WorkflowInspectorSheet } from "@/components/workflow/workflow-inspector"
 import { WorkflowTestRunModal } from "@/components/workflow/workflow-test-modal"
@@ -46,18 +44,13 @@ import {
   type Edge as ReactFlowEdge,
 } from "@xyflow/react"
 import {
-  BotIcon,
   CopyIcon,
-  FilePlusIcon,
-  GitBranchIcon,
   HistoryIcon,
   InfoIcon,
   Loader2Icon,
   PlayIcon,
   PlusIcon,
-  RadioTowerIcon,
   SaveIcon,
-  SendIcon,
   SettingsIcon,
   Share2Icon,
   StarIcon,
@@ -66,7 +59,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 const nodeTypes: NodeTypes = {
@@ -85,6 +78,11 @@ type WorkflowDetailResponse = {
   webhook_url?: string | null
   nodes?: Node<WorkflowCardData>[]
   edges?: ReactFlowEdge[]
+}
+
+type StepInsertionTarget = {
+  parentId?: string
+  branchId?: "true" | "false"
 }
 
 export default function WorkflowBuilderPage() {
@@ -110,7 +108,11 @@ export default function WorkflowBuilderPage() {
   const [isSaving, setIsSaving] = useState(false)
 
   // Sidebar & Modal states
-  const [triggerSidebarOpen, setTriggerSidebarOpen] = useState(false)
+  const [selectionSidebarMode, setSelectionSidebarMode] = useState<
+    "all" | "step" | null
+  >(null)
+  const [stepInsertionTarget, setStepInsertionTarget] =
+    useState<StepInsertionTarget | null>(null)
   const [templateGalleryOpen, setTemplateGalleryOpen] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [inspectorOpen, setInspectorOpen] = useState(false)
@@ -119,16 +121,54 @@ export default function WorkflowBuilderPage() {
   const nodeActionsRef = useRef<{
     duplicate: (id: string) => void
     delete: (id: string) => void
-    addStep: (
-      parentId: string,
-      tone: WorkflowCardData["tone"],
-      branchId?: "true" | "false"
-    ) => void
+    addStep: (parentId: string, branchId?: "true" | "false") => void
+    configure: (id: string) => void
+    testRun: (id: string) => void
   }>({
     duplicate: () => {},
     delete: () => {},
     addStep: () => {},
+    configure: () => {},
+    testRun: () => {},
   })
+
+  // Transient node callbacks — injected on render, stripped before saving.
+  const nodeCallbacks = useMemo<
+    Pick<
+      WorkflowCardData,
+      "onDuplicate" | "onDelete" | "onAddStep" | "onConfigure" | "onTestRun"
+    >
+  >(
+    () => ({
+      onDuplicate: (targetId) => nodeActionsRef.current.duplicate(targetId),
+      onDelete: (targetId) => nodeActionsRef.current.delete(targetId),
+      onAddStep: (parentId, branchId) =>
+        nodeActionsRef.current.addStep(parentId, branchId),
+      onConfigure: (targetId) => nodeActionsRef.current.configure(targetId),
+      onTestRun: (targetId) => nodeActionsRef.current.testRun(targetId),
+    }),
+    []
+  )
+
+  const handleCloseSelectionSidebar = useCallback(() => {
+    setSelectionSidebarMode(null)
+    setStepInsertionTarget(null)
+  }, [])
+
+  const handleOpenBlockSidebar = useCallback(() => {
+    setInspectorOpen(false)
+    setStepInsertionTarget(null)
+    setSelectionSidebarMode("all")
+  }, [])
+
+  const handleRequestAddStep = useCallback(
+    (parentId: string, branchId?: "true" | "false") => {
+      setInspectorOpen(false)
+      setStepInsertionTarget({ parentId, branchId })
+      setSelectionSidebarMode("step")
+    },
+    []
+  )
 
   // Delete node
   const handleDeleteNode = useCallback((id: string) => {
@@ -161,16 +201,13 @@ export default function WorkflowBuilderPage() {
         data: {
           ...existing.data,
           title: `${existing.data.title} (Copy)`,
-          onDuplicate: (targetId) => nodeActionsRef.current.duplicate(targetId),
-          onDelete: (targetId) => nodeActionsRef.current.delete(targetId),
-          onAddStep: (pId, sType, bId) =>
-            nodeActionsRef.current.addStep(pId, sType, bId),
+          ...nodeCallbacks,
         },
       }
       return [...nds, newNode]
     })
     toast.success("Step duplicated")
-  }, [])
+  }, [nodeCallbacks])
 
   // Quick-add next step from handle '+' button
   const handleAddStep = useCallback(
@@ -219,16 +256,10 @@ export default function WorkflowBuilderPage() {
           category = "Messaging"
         }
 
-        const parentX = parentNode ? parentNode.position.x : 300
-        const parentY = parentNode ? parentNode.position.y : 80
-
-        let nextX = parentX
-        if (branchId === "true") {
-          nextX = parentX - 160
-        } else if (branchId === "false") {
-          nextX = parentX + 160
-        }
-        const nextY = parentY + 160
+        const { x: nextX, y: nextY } = getChildNodePosition(
+          parentNode?.position,
+          branchId
+        )
 
         const newNode: Node<WorkflowCardData> = {
           id,
@@ -248,10 +279,7 @@ export default function WorkflowBuilderPage() {
               condition: tone === "condition",
             },
             config: {},
-            onDuplicate: (targetId) => nodeActionsRef.current.duplicate(targetId),
-            onDelete: (targetId) => nodeActionsRef.current.delete(targetId),
-            onAddStep: (pId, sType, bId) =>
-              nodeActionsRef.current.addStep(pId, sType, bId),
+            ...nodeCallbacks,
           },
         }
 
@@ -264,7 +292,7 @@ export default function WorkflowBuilderPage() {
               target: id,
               sourceHandle: branchId || undefined,
               type: "animated",
-              style: { stroke: "#22c55e", strokeWidth: 1.5 },
+              style: { stroke: "var(--border)", strokeWidth: 1.5 },
             },
           ])
         }
@@ -276,16 +304,39 @@ export default function WorkflowBuilderPage() {
         return [...nds, newNode]
       })
     },
-    []
+    [nodeCallbacks]
   )
+
+  // Open the inspector for a node (frame click or the "Configure" affordance)
+  const handleConfigureNode = useCallback((id: string) => {
+    setSelectionSidebarMode(null)
+    setStepInsertionTarget(null)
+    setSelectedNodeId(id)
+    setInspectorOpen(true)
+  }, [])
+
+  // "Run trigger with mock data" reuses the existing whole-workflow test modal
+  const handleTestRunNode = useCallback((id: string) => {
+    setSelectedNodeId(id)
+    setInspectorOpen(false)
+    setTestModalOpen(true)
+  }, [])
 
   useEffect(() => {
     nodeActionsRef.current = {
       duplicate: handleDuplicateNode,
       delete: handleDeleteNode,
-      addStep: handleAddStep,
+      addStep: handleRequestAddStep,
+      configure: handleConfigureNode,
+      testRun: handleTestRunNode,
     }
-  }, [handleDuplicateNode, handleDeleteNode, handleAddStep])
+  }, [
+    handleDuplicateNode,
+    handleDeleteNode,
+    handleRequestAddStep,
+    handleConfigureNode,
+    handleTestRunNode,
+  ])
 
   // Load workflow from backend
   useEffect(() => {
@@ -306,23 +357,17 @@ export default function WorkflowBuilderPage() {
           setIsActive(Boolean(data.is_active))
           setWebhookUrl(data.webhook_url || null)
 
-          const loadedNodes = (data.nodes || []).map((node) => ({
-            ...node,
-            data: {
-              ...node.data,
-              onDuplicate: (id: string) => nodeActionsRef.current.duplicate(id),
-              onDelete: (id: string) => nodeActionsRef.current.delete(id),
-              onAddStep: (pId: string, sType: WorkflowCardData["tone"], bId?: "true" | "false") =>
-                nodeActionsRef.current.addStep(pId, sType, bId),
-            },
-          }))
+          const loadedNodes = attachNodeCallbacks(
+            data.nodes || [],
+            nodeCallbacks
+          )
 
           setNodes(loadedNodes)
           setEdges(data.edges || [])
 
           // If workflow has zero nodes, automatically open the Trigger Selection Sidebar!
           if (loadedNodes.length === 0) {
-            setTriggerSidebarOpen(true)
+            setSelectionSidebarMode("all")
           }
         }
       } catch {
@@ -341,7 +386,7 @@ export default function WorkflowBuilderPage() {
     return () => {
       ignore = true
     }
-  }, [activeOrg?.id, workflowId])
+  }, [activeOrg?.id, workflowId, nodeCallbacks])
 
   // Save changes to backend
   const handleSave = useCallback(
@@ -405,6 +450,21 @@ export default function WorkflowBuilderPage() {
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [handleSave])
 
+  // Edges rendered with a transient Add-step callback; `edges` state stays
+  // serializable so saving never leaks a function into the API payload.
+  const renderedEdges = useMemo<ReactFlowEdge<WorkflowEdgeData>[]>(
+    () =>
+      edges.map((edge) => ({
+        ...edge,
+        data: {
+          ...(edge.data as WorkflowEdgeData | undefined),
+          onAddStep: (parentId: string, branchId?: "true" | "false") =>
+            nodeActionsRef.current.addStep(parentId, branchId),
+        },
+      })),
+    [edges]
+  )
+
   // Node & Edge changes from React Flow
   const onNodesChange = useCallback(
     (changes: NodeChange<Node<WorkflowCardData>>[]) =>
@@ -426,7 +486,7 @@ export default function WorkflowBuilderPage() {
           {
             ...params,
             type: "animated",
-            style: { stroke: "#22c55e", strokeWidth: 1.5 },
+            style: { stroke: "var(--border)", strokeWidth: 1.5 },
           },
           eds
         )
@@ -436,6 +496,8 @@ export default function WorkflowBuilderPage() {
 
   // Clicking a node opens inspector sheet
   const onNodeClick = (_: React.MouseEvent, node: Node) => {
+    setSelectionSidebarMode(null)
+    setStepInsertionTarget(null)
     setSelectedNodeId(node.id)
     setInspectorOpen(true)
   }
@@ -461,33 +523,37 @@ export default function WorkflowBuilderPage() {
   // Handle trigger selected from the TriggerSelectionSidebar
   const handleSelectTrigger = (trigger: TriggerDefinition) => {
     const triggerNodeId = `trigger-${Date.now()}`
-    const newTriggerNode: Node<WorkflowCardData> = {
-      id: triggerNodeId,
-      type: "workflow",
-      position: { x: 300, y: 80 },
-      data: {
-        title: trigger.title,
-        description: trigger.description,
-        category: trigger.category === "Collections" ? "Lists" : trigger.category,
-        typeLabel: trigger.typeLabel,
-        typeClassName: trigger.typeClassName,
-        icon: trigger.iconName || "RadioTower",
-        tone: trigger.tone,
-        handles: { target: false, source: true },
-        config: trigger.config ?? {},
-        onDuplicate: (id) => nodeActionsRef.current.duplicate(id),
-        onDelete: (id) => nodeActionsRef.current.delete(id),
-        onAddStep: (pId, sType, bId) =>
-          nodeActionsRef.current.addStep(pId, sType, bId),
-      },
-    }
 
-    setNodes([newTriggerNode])
-    setEdges([])
-    setTriggerSidebarOpen(false)
+    setNodes((currentNodes) => {
+      const triggerCount = currentNodes.filter(
+        (node) => node.data.tone === "trigger"
+      ).length
+      const newTriggerNode: Node<WorkflowCardData> = {
+        id: triggerNodeId,
+        type: "workflow",
+        position: { x: 80 + triggerCount * 360, y: 160 },
+        data: {
+          title: trigger.title,
+          description: trigger.description,
+          category:
+            trigger.category === "Collections" ? "Lists" : trigger.category,
+          typeLabel: trigger.typeLabel,
+          typeClassName: trigger.typeClassName,
+          icon: trigger.iconName || "RadioTower",
+          tone: trigger.tone,
+          handles: { target: false, source: true },
+          config: trigger.config ?? {},
+          ...nodeCallbacks,
+        },
+      }
+
+      return [...currentNodes, newTriggerNode]
+    })
+    setSelectionSidebarMode(null)
+    setStepInsertionTarget(null)
     setSelectedNodeId(triggerNodeId)
     setInspectorOpen(true)
-    toast.success(`Trigger set: ${trigger.title}`)
+    toast.success(`Trigger added: ${trigger.title}`)
   }
 
   // Apply starter blueprint
@@ -556,8 +622,9 @@ export default function WorkflowBuilderPage() {
     }
 
     const lastNode = nodes[nodes.length - 1]
-    const nextX = lastNode ? lastNode.position.x : 300
-    const nextY = lastNode ? lastNode.position.y + 160 : 80
+    const { x: nextX, y: nextY } = lastNode
+      ? getChildNodePosition(lastNode.position)
+      : ROOT_NODE_POSITION
 
     const newNode: Node<WorkflowCardData> = {
       id,
@@ -577,10 +644,7 @@ export default function WorkflowBuilderPage() {
           condition: tone === "condition",
         },
         config: {},
-        onDuplicate: (targetId) => nodeActionsRef.current.duplicate(targetId),
-        onDelete: (targetId) => nodeActionsRef.current.delete(targetId),
-        onAddStep: (pId, sType, bId) =>
-          nodeActionsRef.current.addStep(pId, sType, bId),
+        ...nodeCallbacks,
       },
     }
 
@@ -594,7 +658,7 @@ export default function WorkflowBuilderPage() {
           source: lastNode.id,
           target: newNode.id,
           type: "animated",
-          style: { stroke: "#22c55e", strokeWidth: 1.5 },
+          style: { stroke: "var(--border)", strokeWidth: 1.5 },
         },
       ])
     }
@@ -602,6 +666,20 @@ export default function WorkflowBuilderPage() {
     setSelectedNodeId(newNode.id)
     setInspectorOpen(true)
     toast.success(`Added ${typeLabel} block`)
+  }
+
+  const handleSelectStep = (step: StepDefinition) => {
+    const insertionTarget = stepInsertionTarget
+
+    setSelectionSidebarMode(null)
+    setStepInsertionTarget(null)
+
+    if (insertionTarget?.parentId) {
+      handleAddStep(insertionTarget.parentId, step.tone, insertionTarget.branchId)
+      return
+    }
+
+    handleAddBlock(step.tone)
   }
 
   // Delete entire workflow
@@ -788,103 +866,35 @@ export default function WorkflowBuilderPage() {
               {/* Empty State Overlay */}
               {nodes.length === 0 && (
                 <CanvasEmptyState
-                  onOpenTriggerSidebar={() => setTriggerSidebarOpen(true)}
+                  onOpenBlockSidebar={handleOpenBlockSidebar}
                   onOpenTemplates={() => setTemplateGalleryOpen(true)}
                 />
               )}
 
               <Canvas
                 nodes={nodes}
-                edges={edges}
+                edges={renderedEdges}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
                 onNodeClick={onNodeClick}
-                className="h-full w-full [&_.react-flow__handle]:size-3 [&_.react-flow__handle]:border-2 [&_.react-flow__handle]:border-slate-400 [&_.react-flow__handle]:bg-background"
+                className="h-full w-full [&_.react-flow__handle]:size-3.5 [&_.react-flow__handle]:border-2 [&_.react-flow__handle]:border-slate-300 dark:[&_.react-flow__handle]:border-slate-600 [&_.react-flow__handle]:bg-background"
                 fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
               >
                 <Controls position="bottom-left" />
 
                 {/* Floating Canvas Toolbar */}
                 <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button
-                          size="sm"
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs text-xs rounded-lg"
-                        >
-                          <PlusIcon className="size-3.5" />
-                          Add step
-                        </Button>
-                      }
-                    />
-                    <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuLabel className="text-xs text-muted-foreground">
-                        Flow Blocks
-                      </DropdownMenuLabel>
-                      <DropdownMenuItem
-                        onClick={() => handleAddBlock("action")}
-                        className="gap-2 cursor-pointer"
-                      >
-                        <FilePlusIcon className="size-4 text-emerald-600" />
-                        <div className="flex flex-col">
-                          <span className="font-medium text-xs">Record Action</span>
-                          <span className="text-[10px] text-muted-foreground">
-                            Create or update CRM records
-                          </span>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleAddBlock("condition")}
-                        className="gap-2 cursor-pointer"
-                      >
-                        <GitBranchIcon className="size-4 text-violet-600" />
-                        <div className="flex flex-col">
-                          <span className="font-medium text-xs">Condition Branch</span>
-                          <span className="text-[10px] text-muted-foreground">
-                            True / False conditional routing
-                          </span>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleAddBlock("ai")}
-                        className="gap-2 cursor-pointer"
-                      >
-                        <BotIcon className="size-4 text-purple-600" />
-                        <div className="flex flex-col">
-                          <span className="font-medium text-xs">AI Specialist</span>
-                          <span className="text-[10px] text-muted-foreground">
-                            Extract fields and generate responses
-                          </span>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleAddBlock("channel")}
-                        className="gap-2 cursor-pointer"
-                      >
-                        <SendIcon className="size-4 text-cyan-600" />
-                        <div className="flex flex-col">
-                          <span className="font-medium text-xs">Channel Message</span>
-                          <span className="text-[10px] text-muted-foreground">
-                            Post to Viber, Telegram, or Messenger
-                          </span>
-                        </div>
-                      </DropdownMenuItem>
-
-                      <DropdownMenuSeparator />
-
-                      <DropdownMenuItem
-                        onClick={() => setTriggerSidebarOpen(true)}
-                        className="gap-2 cursor-pointer"
-                      >
-                        <RadioTowerIcon className="size-4 text-muted-foreground" />
-                        <span className="text-xs">Browse Triggers…</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Button
+                    size="sm"
+                    onClick={handleOpenBlockSidebar}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs text-xs rounded-lg"
+                  >
+                    <PlusIcon className="size-3.5" />
+                    Add block
+                  </Button>
 
                   <Button
                     variant="outline"
@@ -900,10 +910,13 @@ export default function WorkflowBuilderPage() {
             </div>
           </div>
 
-          {/* Trigger Selection Sidebar */}
-          <TriggerSelectionSidebar
-            open={triggerSidebarOpen}
+          <WorkflowBlockSelectionSidebar
+            key={selectionSidebarMode ?? "closed"}
+            open={selectionSidebarMode !== null}
+            mode={selectionSidebarMode ?? "all"}
+            onClose={handleCloseSelectionSidebar}
             onSelectTrigger={handleSelectTrigger}
+            onSelectStep={handleSelectStep}
           />
         </div>
       )}

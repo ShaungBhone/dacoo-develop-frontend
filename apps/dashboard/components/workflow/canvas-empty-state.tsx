@@ -5,21 +5,21 @@ import { cn } from "@/lib/utils"
 import { LayoutTemplateIcon, RadioTowerIcon } from "lucide-react"
 
 type CanvasEmptyStateProps = {
-  onOpenTriggerSidebar: () => void
+  onOpenBlockSidebar: () => void
   onOpenTemplates: () => void
 }
 
 export function CanvasEmptyState({
-  onOpenTriggerSidebar,
+  onOpenBlockSidebar,
   onOpenTemplates,
 }: CanvasEmptyStateProps) {
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
       <div className="pointer-events-auto flex flex-col items-center gap-4 text-center max-w-sm">
-        {/* Set a trigger in the sidebar card */}
+        {/* Open the workflow block library */}
         <button
           type="button"
-          onClick={onOpenTriggerSidebar}
+          onClick={onOpenBlockSidebar}
           className={cn(
             "group flex items-center gap-2.5 rounded-xl border-2 border-dashed border-sky-400/80 bg-background/80 px-6 py-3.5 shadow-xs backdrop-blur-xs",
             "hover:border-sky-500 hover:bg-sky-50/50 dark:hover:bg-sky-950/20 transition-all duration-150 cursor-pointer"
@@ -29,7 +29,7 @@ export function CanvasEmptyState({
             <RadioTowerIcon className="size-3.5" />
           </span>
           <span className="text-sm font-medium text-foreground group-hover:text-sky-700 dark:group-hover:text-sky-300">
-            Set a trigger in the sidebar
+            Add your first block
           </span>
         </button>
 

@@ -1,13 +1,25 @@
 "use client"
 
+import { Button } from "@/components/ui/button"
 import type { EdgeProps, InternalNode, Node } from "@xyflow/react"
 import {
   BaseEdge,
-  getBezierPath,
-  getSimpleBezierPath,
+  EdgeLabelRenderer,
+  getSmoothStepPath,
   Position,
   useInternalNode,
 } from "@xyflow/react"
+import { PlusIcon } from "lucide-react"
+
+import type { WorkflowBranchId } from "./workflow-node-utils"
+
+/**
+ * Transient edge data — the Add-step callback is injected at render time and
+ * stripped before the workflow is persisted.
+ */
+export type WorkflowEdgeData = {
+  onAddStep?: (parentId: string, branchId?: WorkflowBranchId) => void
+}
 
 const Temporary = ({
   id,
@@ -15,16 +27,17 @@ const Temporary = ({
   sourceY,
   targetX,
   targetY,
-  sourcePosition,
-  targetPosition,
+  sourcePosition = Position.Right,
+  targetPosition = Position.Left,
 }: EdgeProps) => {
-  const [edgePath] = getSimpleBezierPath({
+  const [edgePath] = getSmoothStepPath({
     sourcePosition,
     sourceX,
     sourceY,
     targetPosition,
     targetX,
     targetY,
+    borderRadius: 16,
   })
 
   return (
@@ -74,9 +87,9 @@ const getEdgeParams = (
   sourceHandleId?: string | null,
   targetHandleId?: string | null
 ) => {
-  const sourcePos = Position.Bottom
+  const sourcePos = Position.Right
   const [sx, sy] = getHandleCoordsByPosition(source, sourcePos, sourceHandleId)
-  const targetPos = Position.Top
+  const targetPos = Position.Left
   const [tx, ty] = getHandleCoordsByPosition(target, targetPos, targetHandleId)
 
   return {
@@ -97,6 +110,7 @@ const Animated = ({
   targetHandleId,
   markerEnd,
   style,
+  data,
 }: EdgeProps) => {
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
@@ -112,14 +126,19 @@ const Animated = ({
     targetHandleId
   )
 
-  const [edgePath] = getBezierPath({
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourcePosition: sourcePos,
     sourceX: sx,
     sourceY: sy,
     targetPosition: targetPos,
     targetX: tx,
     targetY: ty,
+    borderRadius: 16,
   })
+
+  const onAddStep = (data as WorkflowEdgeData | undefined)?.onAddStep
+  const strokeColor =
+    style?.stroke && style.stroke !== "#22c55e" ? style.stroke : "var(--border)"
 
   return (
     <>
@@ -128,14 +147,33 @@ const Animated = ({
         markerEnd={markerEnd}
         path={edgePath}
         style={{
-          stroke: "#22c55e",
           strokeWidth: 1.5,
           ...style,
+          stroke: strokeColor,
         }}
       />
-      <circle fill="#22c55e" r="3.5">
-        <animateMotion dur="2.5s" path={edgePath} repeatCount="indefinite" />
-      </circle>
+      {onAddStep && (
+        <EdgeLabelRenderer>
+          <Button
+            size="xs"
+            variant="outline"
+            className="nodrag nopan pointer-events-auto absolute"
+            style={{
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            }}
+            aria-label="Add step here"
+            onClick={(event) => {
+              event.stopPropagation()
+              onAddStep(
+                source,
+                (sourceHandleId as WorkflowBranchId | null) ?? undefined
+              )
+            }}
+          >
+            <PlusIcon />
+          </Button>
+        </EdgeLabelRenderer>
+      )}
     </>
   )
 }

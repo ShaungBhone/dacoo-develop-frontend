@@ -1,15 +1,24 @@
 "use client"
 
+import { Badge } from "@/components/reui/badge"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  Frame,
+  FrameFooter,
+  FrameHeader,
+  FramePanel,
+  FrameTitle,
+} from "@/components/reui/frame"
+import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { TypographyMuted } from "@/components/ui/typography"
 import { cn } from "@/lib/utils"
 import type { NodeProps } from "@xyflow/react"
-import { Handle, Position } from "@xyflow/react"
+import { Handle, Position, useNodeConnections } from "@xyflow/react"
 import {
   AlertCircleIcon,
   BotIcon,
@@ -24,9 +33,11 @@ import {
   Loader2Icon,
   MessageSquareIcon,
   PhoneIcon,
+  PlayIcon,
   PlusIcon,
   RadioTowerIcon,
   SendIcon,
+  SettingsIcon,
   SparklesIcon,
   TerminalIcon,
   Trash2Icon,
@@ -34,6 +45,13 @@ import {
   UserPlusIcon,
 } from "lucide-react"
 import type { ElementType } from "react"
+
+import {
+  getProviderLabel,
+  isNodeSetupComplete,
+  type WorkflowBranchId,
+  type WorkflowTone,
+} from "./workflow-node-utils"
 
 const iconMap: Record<string, ElementType<{ className?: string }>> = {
   RadioTower: RadioTowerIcon,
@@ -61,7 +79,7 @@ export type WorkflowCardData = {
   typeClassName?: string
   icon?: string
   iconClassName?: string
-  tone: "trigger" | "action" | "condition" | "ai" | "channel"
+  tone: WorkflowTone
   handles?: {
     target?: boolean
     source?: boolean
@@ -69,13 +87,12 @@ export type WorkflowCardData = {
   }
   config?: Record<string, unknown>
   status?: "pending" | "running" | "success" | "failed"
+  // Transient callbacks — injected on render, never persisted through the API.
   onDuplicate?: (id: string) => void
   onDelete?: (id: string) => void
-  onAddStep?: (
-    parentId: string,
-    stepType: "action" | "condition" | "ai" | "channel",
-    branchId?: "true" | "false"
-  ) => void
+  onAddStep?: (parentId: string, branchId?: WorkflowBranchId) => void
+  onConfigure?: (id: string) => void
+  onTestRun?: (id: string) => void
 }
 
 export type WorkflowFlowNode = import("@xyflow/react").Node<
@@ -83,7 +100,7 @@ export type WorkflowFlowNode = import("@xyflow/react").Node<
   "workflow"
 >
 
-const toneTabStyles: Record<WorkflowCardData["tone"], string> = {
+const toneBadgeStyles: Record<WorkflowTone, string> = {
   trigger:
     "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-900/60",
   action:
@@ -95,8 +112,8 @@ const toneTabStyles: Record<WorkflowCardData["tone"], string> = {
     "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/60 dark:text-cyan-300 dark:border-cyan-900/60",
 }
 
-const toneTabIcons: Record<
-  WorkflowCardData["tone"],
+const toneBadgeIcons: Record<
+  WorkflowTone,
   ElementType<{ className?: string }>
 > = {
   trigger: RadioTowerIcon,
@@ -106,7 +123,7 @@ const toneTabIcons: Record<
   channel: SendIcon,
 }
 
-const defaultTypeLabels: Record<WorkflowCardData["tone"], string> = {
+const defaultTypeLabels: Record<WorkflowTone, string> = {
   trigger: "Trigger",
   action: "Action",
   condition: "Condition",
@@ -114,13 +131,12 @@ const defaultTypeLabels: Record<WorkflowCardData["tone"], string> = {
   channel: "Channel",
 }
 
-const defaultCategories: Record<WorkflowCardData["tone"], string> = {
-  trigger: "Triggers",
-  action: "Records",
-  condition: "Logic",
-  ai: "AI",
-  channel: "Messaging",
-}
+/** Shown on hover or keyboard focus anywhere inside the node. */
+const revealOnHoverClassName =
+  "pointer-events-none opacity-0 transition-opacity group-hover/node:pointer-events-auto group-hover/node:opacity-100 group-focus-within/node:pointer-events-auto group-focus-within/node:opacity-100"
+
+const handleClassName =
+  "size-3.5 rounded-full border-2 border-slate-300 bg-background transition-colors hover:border-sky-500 dark:border-slate-600 shadow-2xs"
 
 export function WorkflowCard({
   id,
@@ -131,343 +147,303 @@ export function WorkflowCard({
   const tone = nodeData.tone || "action"
   const IconComponent =
     (nodeData.icon ? iconMap[nodeData.icon] : null) ??
-    toneTabIcons[tone] ??
+    toneBadgeIcons[tone] ??
     RadioTowerIcon
-  const TabIcon = toneTabIcons[tone] ?? RadioTowerIcon
+  const BadgeIcon = toneBadgeIcons[tone] ?? RadioTowerIcon
+
+  const isCondition = Boolean(nodeData.handles?.condition)
+  const hasTarget = nodeData.handles?.target !== false && tone !== "trigger"
+  const hasSource = nodeData.handles?.source !== false
+  const needsSetup = !isNodeSetupComplete(tone, nodeData.config)
+  const providerLabel = getProviderLabel(
+    tone,
+    nodeData.config,
+    nodeData.category
+  )
+
+  // Branch outputs keep their own Add control only while nothing is wired to
+  // them; a connected branch is extended from the child's own rail instead.
+  const sourceConnections = useNodeConnections({ id, handleType: "source" })
+  const isBranchConnected = (branchId: WorkflowBranchId) =>
+    sourceConnections.some((connection) => connection.sourceHandle === branchId)
+
+  const openInspector = () => nodeData.onConfigure?.(id)
 
   return (
-    <div className="group/node relative w-[285px] pt-6 select-none">
-      {/* Top Attached Folder Tab */}
-      <div
+    <div className="group/node relative w-75 select-none">
+      {tone === "trigger" && nodeData.onTestRun ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="outline"
+                className="nodrag group/badge absolute -top-9 z-20"
+                aria-label="Run trigger with mock data"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  nodeData.onTestRun?.(id)
+                }}
+              >
+                <BadgeIcon
+                  className="size-3 group-hover/badge:hidden"
+                  aria-hidden="true"
+                />
+                <PlayIcon
+                  className="hidden size-3 fill-emerald-600 text-emerald-600 group-hover/badge:inline-block dark:fill-emerald-400 dark:text-emerald-400"
+                  aria-hidden="true"
+                />
+                {nodeData.typeLabel || defaultTypeLabels[tone]}
+              </Button>
+            }
+          />
+          <TooltipContent side="top">
+            {nodeData.description && (
+              <TypographyMuted className="text-[11px] opacity-80">
+                {nodeData.description}
+              </TypographyMuted>
+            )}
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        <Badge
+          variant="outline"
+          className={cn(
+            "pointer-events-none absolute -top-6 left-1 z-20",
+            toneBadgeStyles[tone]
+          )}
+        >
+          <BadgeIcon className="size-3" aria-hidden="true" />
+          <span>{nodeData.typeLabel || defaultTypeLabels[tone]}</span>
+        </Badge>
+      )}
+
+      {/* Action rail (reveals on hover/focus) */}
+      <ButtonGroup
+        orientation="vertical"
         className={cn(
-          "absolute top-0 left-0 z-10 inline-flex items-center gap-1.5 rounded-t-lg border-t border-x px-2.5 py-1 text-xs font-medium transition-colors",
-          toneTabStyles[tone]
+          "nodrag absolute top-1 -right-8 z-20",
+          revealOnHoverClassName
         )}
       >
-        <TabIcon className="size-3.5" aria-hidden="true" />
-        <span>{nodeData.typeLabel || defaultTypeLabels[tone]}</span>
-      </div>
-
-      {/* Top Right Quick Actions and Status */}
-      <div className="absolute top-0.5 right-0 z-20 flex items-center gap-1">
-        {nodeData.status === "running" && (
-          <span className="inline-flex items-center gap-1 rounded-md bg-sky-100 dark:bg-sky-950/70 text-sky-700 dark:text-sky-300 text-[10px] px-2 py-0.5 font-medium">
-            <Loader2Icon className="size-3 animate-spin" />
-            Running
-          </span>
+        {(nodeData.onConfigure ||
+          (nodeData.onAddStep && hasSource && !isCondition) ||
+          nodeData.onDuplicate) && (
+          <ButtonGroup orientation="vertical">
+            {nodeData.onConfigure && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-xs"
+                aria-label="Configure this step"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  nodeData.onConfigure?.(id)
+                }}
+              >
+                <SettingsIcon className="size-3" />
+              </Button>
+            )}
+            {nodeData.onAddStep && hasSource && !isCondition && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-xs"
+                aria-label="Add next step"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  nodeData.onAddStep?.(id)
+                }}
+              >
+                <PlusIcon className="size-3" />
+              </Button>
+            )}
+            {nodeData.onDuplicate && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-xs"
+                aria-label="Duplicate step"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  nodeData.onDuplicate?.(id)
+                }}
+              >
+                <CopyIcon className="size-3" />
+              </Button>
+            )}
+          </ButtonGroup>
         )}
-        {nodeData.status === "success" && (
-          <CheckCircle2Icon className="size-4 text-emerald-600" />
-        )}
-        {nodeData.status === "failed" && (
-          <AlertCircleIcon className="size-4 text-destructive" />
-        )}
-
-        <div className="hidden items-center gap-0.5 group-hover/node:flex">
-          {nodeData.onDuplicate && (
-            <button
+        {nodeData.onDelete && (
+          <ButtonGroup>
+            <Button
               type="button"
-              className="size-5 rounded-md border border-border bg-background text-muted-foreground hover:text-foreground flex items-center justify-center cursor-pointer shadow-2xs nodrag"
-              aria-label="Duplicate step"
-              onClick={(e) => {
-                e.stopPropagation()
-                nodeData.onDuplicate?.(id)
-              }}
-            >
-              <CopyIcon className="size-3" />
-            </button>
-          )}
-          {nodeData.onDelete && (
-            <button
-              type="button"
-              className="size-5 rounded-md border border-border bg-background text-muted-foreground hover:text-destructive flex items-center justify-center cursor-pointer shadow-2xs nodrag"
+              variant="outline"
+              size="icon-xs"
               aria-label="Delete step"
-              onClick={(e) => {
-                e.stopPropagation()
+              onClick={(event) => {
+                event.stopPropagation()
                 nodeData.onDelete?.(id)
               }}
             >
               <Trash2Icon className="size-3" />
-            </button>
-          )}
-        </div>
-      </div>
+            </Button>
+          </ButtonGroup>
+        )}
+      </ButtonGroup>
 
-      {/* Main Node Card Body matching Attio */}
-      <div
+      {/* Frame matching the provided Pattern */}
+      <Frame
+        role="button"
+        spacing="xs"
+        tabIndex={0}
+        aria-label={nodeData.title}
+        onClick={openInspector}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault()
+            openInspector()
+          }
+        }}
         className={cn(
-          "w-full rounded-xl rounded-tl-none border border-border bg-card p-3 shadow-2xs transition-all duration-150 cursor-pointer",
-          selected
-            ? "ring-2 ring-sky-500/40 border-sky-500 dark:border-sky-400"
-            : "hover:border-border/80 hover:shadow-xs",
-          nodeData.status === "running" && "ring-2 ring-sky-500/40 border-sky-500",
-          nodeData.status === "failed" && "ring-2 ring-destructive/40 border-destructive"
+          "w-full max-w-sm cursor-pointer bg-muted/50 outline-hidden",
+          selected && "border-ring ring-1 ring-ring",
+          nodeData.status === "running" && "border-sky-500",
+          nodeData.status === "failed" && "border-destructive"
         )}
       >
-        {/* Incoming Target Handle (Top Center) */}
-        {nodeData.handles?.target !== false && tone !== "trigger" && (
+        {hasTarget && (
           <Handle
             type="target"
-            position={Position.Top}
-            className="size-3 rounded-full border-2 border-slate-300 dark:border-slate-600 bg-background transition-colors hover:border-sky-500"
+            position={Position.Left}
+            className={handleClassName}
           />
         )}
 
-        {/* Top Row: Event Icon + Title + Category Badge */}
-        <div className="flex items-center gap-2.5 justify-between">
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div
-              className={cn(
-                "flex size-7 shrink-0 items-center justify-center rounded-md text-xs",
-                nodeData.iconClassName || "bg-muted text-foreground"
-              )}
-            >
-              <IconComponent className="size-3.5" aria-hidden="true" />
-            </div>
-            <span className="font-semibold text-sm text-foreground tracking-tight truncate">
-              {nodeData.title}
-            </span>
-          </div>
+        <FrameHeader>
+          <FrameTitle className="truncate text-sm font-medium">
+            {nodeData.title}
+          </FrameTitle>
+        </FrameHeader>
 
-          <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-muted/60 text-muted-foreground border border-border/50 shrink-0">
-            {nodeData.category || defaultCategories[tone]}
-          </span>
-        </div>
-
-        {/* Hairline Divider */}
-        <div className="border-b border-border/50 my-2.5" />
-
-        {/* Description Row */}
-        <div className="text-xs leading-normal">
+        <FramePanel>
           {nodeData.description ? (
-            <p className="text-muted-foreground line-clamp-2">
+            <p className="text-muted-foreground text-xs line-clamp-2">
               {nodeData.description}
             </p>
+          ) : needsSetup ? (
+            <p className="text-muted-foreground/60 text-xs italic">
+              Requires configuration
+            </p>
           ) : (
-            <p className="text-muted-foreground/60 italic">No description</p>
+            <p className="text-muted-foreground/60 text-xs italic">
+              Step ready
+            </p>
           )}
-        </div>
-      </div>
+        </FramePanel>
 
-      {/* Outgoing Source Handle for Normal Nodes (Bottom Center) */}
-      {nodeData.handles?.source !== false && !nodeData.handles?.condition && (
-        <div className="absolute -bottom-7 left-1/2 -translate-x-1/2 flex flex-col items-center z-20">
+        <FrameFooter>
+          <div className="flex items-center justify-between">
+            <Badge variant="secondary">
+              <IconComponent
+                className={cn("size-3 shrink-0", nodeData.iconClassName)}
+                aria-hidden="true"
+              />
+              <span className="truncate">{providerLabel}</span>
+            </Badge>
+            {nodeData.status === "running" && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-600">
+                <Loader2Icon className="size-3.5 animate-spin" />
+                Running
+              </span>
+            )}
+            {nodeData.status === "success" && (
+              <CheckCircle2Icon className="size-3.5 text-emerald-600" />
+            )}
+            {nodeData.status === "failed" && (
+              <AlertCircleIcon className="size-3.5 text-destructive" />
+            )}
+          </div>
+        </FrameFooter>
+
+        {hasSource && !isCondition && (
           <Handle
             type="source"
-            position={Position.Bottom}
-            className="relative! left-auto! top-auto! translate-x-0! translate-y-0! size-3 rounded-full border-2 border-slate-300 dark:border-slate-600 bg-background transition-colors hover:border-sky-500"
+            position={Position.Right}
+            className={handleClassName}
           />
-          <div className="w-px h-1.5 bg-border" />
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <button
-                  type="button"
-                  className="size-5 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-xs cursor-pointer hover:scale-110 transition-transform nodrag"
-                  aria-label="Add next step"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <PlusIcon className="size-3 stroke-[2.5]" />
-                </button>
-              }
-            />
-            <DropdownMenuContent
-              align="center"
-              side="bottom"
-              sideOffset={4}
-              className="w-52 nodrag"
-            >
-              <DropdownMenuLabel className="text-xs text-muted-foreground">
-                Add next step
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={() => nodeData.onAddStep?.(id, "action")}
-                className="gap-2 cursor-pointer text-xs"
-              >
-                <FilePlusIcon className="size-4 text-emerald-600" />
-                <div className="flex flex-col">
-                  <span className="font-medium text-xs">Record Action</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    Create or update records
-                  </span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => nodeData.onAddStep?.(id, "condition")}
-                className="gap-2 cursor-pointer text-xs"
-              >
-                <GitBranchIcon className="size-4 text-violet-600" />
-                <div className="flex flex-col">
-                  <span className="font-medium text-xs">Condition Branch</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    True / False routing
-                  </span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => nodeData.onAddStep?.(id, "ai")}
-                className="gap-2 cursor-pointer text-xs"
-              >
-                <BotIcon className="size-4 text-purple-600" />
-                <div className="flex flex-col">
-                  <span className="font-medium text-xs">AI Agent</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    Structured prompt & extraction
-                  </span>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => nodeData.onAddStep?.(id, "channel")}
-                className="gap-2 cursor-pointer text-xs"
-              >
-                <SendIcon className="size-4 text-cyan-600" />
-                <div className="flex flex-col">
-                  <span className="font-medium text-xs">Channel Message</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    Telegram, Messenger, Viber
-                  </span>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
+        )}
 
-      {/* Outgoing Source Handles for Condition (If/Else) Nodes */}
-      {nodeData.handles?.condition && (
-        <div className="absolute -bottom-9 left-0 right-0 flex items-center justify-around z-20 px-4">
-          {/* True Branch */}
-          <div className="flex flex-col items-center">
-            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mb-0.5">
-              True
-            </span>
+        {isCondition && (
+          <>
             <Handle
               id="true"
               type="source"
-              position={Position.Bottom}
-              className="relative! left-auto! top-auto! translate-x-0! translate-y-0! size-3 rounded-full border-2 border-emerald-500 bg-background"
+              position={Position.Right}
+              style={{ top: "35%" }}
+              className={cn(handleClassName, "border-emerald-500")}
             />
-            <div className="w-px h-1.5 bg-emerald-500/40" />
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <button
-                    type="button"
-                    className="size-4.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-xs cursor-pointer hover:scale-110 transition-transform nodrag"
-                    aria-label="Add step if true"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <PlusIcon className="size-2.5 stroke-[2.5]" />
-                  </button>
-                }
-              />
-              <DropdownMenuContent
-                align="center"
-                side="bottom"
-                sideOffset={4}
-                className="w-52 nodrag"
-              >
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  Add step if True
-                </DropdownMenuLabel>
-                <DropdownMenuItem
-                  onClick={() => nodeData.onAddStep?.(id, "action", "true")}
-                  className="gap-2 cursor-pointer text-xs"
-                >
-                  <FilePlusIcon className="size-4 text-emerald-600" />
-                  <span>Record Action</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => nodeData.onAddStep?.(id, "condition", "true")}
-                  className="gap-2 cursor-pointer text-xs"
-                >
-                  <GitBranchIcon className="size-4 text-violet-600" />
-                  <span>Condition Branch</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => nodeData.onAddStep?.(id, "ai", "true")}
-                  className="gap-2 cursor-pointer text-xs"
-                >
-                  <BotIcon className="size-4 text-purple-600" />
-                  <span>AI Agent</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => nodeData.onAddStep?.(id, "channel", "true")}
-                  className="gap-2 cursor-pointer text-xs"
-                >
-                  <SendIcon className="size-4 text-cyan-600" />
-                  <span>Channel Message</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {/* False Branch */}
-          <div className="flex flex-col items-center">
-            <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 mb-0.5">
-              False
-            </span>
             <Handle
               id="false"
               type="source"
-              position={Position.Bottom}
-              className="relative! left-auto! top-auto! translate-x-0! translate-y-0! size-3 rounded-full border-2 border-rose-500 bg-background"
+              position={Position.Right}
+              style={{ top: "65%" }}
+              className={cn(handleClassName, "border-rose-500")}
             />
-            <div className="w-px h-1.5 bg-rose-500/40" />
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <button
-                    type="button"
-                    className="size-4.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-xs cursor-pointer hover:scale-110 transition-transform nodrag"
-                    aria-label="Add step if false"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <PlusIcon className="size-2.5 stroke-[2.5]" />
-                  </button>
-                }
-              />
-              <DropdownMenuContent
-                align="center"
-                side="bottom"
-                sideOffset={4}
-                className="w-52 nodrag"
+          </>
+        )}
+      </Frame>
+
+      {/* Branch labels and Add controls for unconnected condition outputs */}
+      {isCondition && (
+        <>
+          <div
+            style={{ top: "35%", right: "-2.5rem" }}
+            className="pointer-events-none absolute z-20 flex -translate-y-1/2 items-center gap-1"
+          >
+            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+              True
+            </span>
+            {!isBranchConnected("true") && nodeData.onAddStep && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-xs"
+                className="nodrag pointer-events-auto size-5 shadow-2xs hover:text-emerald-600"
+                aria-label="Add step if true"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  nodeData.onAddStep?.(id, "true")
+                }}
               >
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  Add step if False
-                </DropdownMenuLabel>
-                <DropdownMenuItem
-                  onClick={() => nodeData.onAddStep?.(id, "action", "false")}
-                  className="gap-2 cursor-pointer text-xs"
-                >
-                  <FilePlusIcon className="size-4 text-emerald-600" />
-                  <span>Record Action</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => nodeData.onAddStep?.(id, "condition", "false")}
-                  className="gap-2 cursor-pointer text-xs"
-                >
-                  <GitBranchIcon className="size-4 text-violet-600" />
-                  <span>Condition Branch</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => nodeData.onAddStep?.(id, "ai", "false")}
-                  className="gap-2 cursor-pointer text-xs"
-                >
-                  <BotIcon className="size-4 text-purple-600" />
-                  <span>AI Agent</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => nodeData.onAddStep?.(id, "channel", "false")}
-                  className="gap-2 cursor-pointer text-xs"
-                >
-                  <SendIcon className="size-4 text-cyan-600" />
-                  <span>Channel Message</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <PlusIcon className="size-3" />
+              </Button>
+            )}
           </div>
-        </div>
+          <div
+            style={{ top: "65%", right: "-2.5rem" }}
+            className="pointer-events-none absolute z-20 flex -translate-y-1/2 items-center gap-1"
+          >
+            <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+              False
+            </span>
+            {!isBranchConnected("false") && nodeData.onAddStep && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-xs"
+                className="nodrag pointer-events-auto size-5 shadow-2xs hover:text-rose-600"
+                aria-label="Add step if false"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  nodeData.onAddStep?.(id, "false")
+                }}
+              >
+                <PlusIcon className="size-3" />
+              </Button>
+            )}
+          </div>
+        </>
       )}
     </div>
   )

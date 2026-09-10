@@ -1,21 +1,24 @@
 "use client"
 
 import type { Edge, Node, ReactFlowProps } from "@xyflow/react"
-import { Background, ReactFlow } from "@xyflow/react"
+import { Background, BackgroundVariant, ReactFlow } from "@xyflow/react"
 import type { ReactNode } from "react"
 
 import "@xyflow/react/dist/style.css"
 
-type CanvasProps<NodeType extends Node = Node, EdgeType extends Edge = Edge> = ReactFlowProps<NodeType, EdgeType> & {
+type CanvasProps<
+  NodeType extends Node = Node,
+  EdgeType extends Edge = Edge,
+> = ReactFlowProps<NodeType, EdgeType> & {
   children?: ReactNode
 }
 
 const deleteKeyCode = ["Backspace", "Delete"]
 
-export function Canvas<NodeType extends Node = Node, EdgeType extends Edge = Edge>({
-  children,
-  ...props
-}: CanvasProps<NodeType, EdgeType>) {
+export function Canvas<
+  NodeType extends Node = Node,
+  EdgeType extends Edge = Edge,
+>({ children, ...props }: CanvasProps<NodeType, EdgeType>) {
   return (
     <ReactFlow<NodeType, EdgeType>
       deleteKeyCode={deleteKeyCode}
@@ -26,7 +29,15 @@ export function Canvas<NodeType extends Node = Node, EdgeType extends Edge = Edg
       {...props}
       proOptions={{ hideAttribution: true }}
     >
-      <Background bgColor="var(--sidebar)" />
+      <Background
+        variant={BackgroundVariant.Lines}
+        gap={32}
+        lineWidth={1}
+        color="var(--border)"
+        bgColor="var(--sidebar)"
+        patternClassName="[stroke-dasharray:5_5]"
+        className="opacity-40"
+      />
       {children}
     </ReactFlow>
   )
