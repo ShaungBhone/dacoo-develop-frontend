@@ -43,7 +43,7 @@ const nodes: WorkflowFlowNode[] = [
   {
     id: "inbound-message",
     type: "workflow",
-    position: { x: 0, y: 240 },
+    position: { x: 240, y: 0 },
     data: {
       title: "Inbound message",
       description: "A customer message arrives.",
@@ -55,7 +55,7 @@ const nodes: WorkflowFlowNode[] = [
   {
     id: "customer-support",
     type: "workflow",
-    position: { x: 270, y: 105 },
+    position: { x: 115, y: 130 },
     data: {
       title: "Customer support",
       description: "Answers account questions.",
@@ -67,7 +67,7 @@ const nodes: WorkflowFlowNode[] = [
   {
     id: "sales",
     type: "workflow",
-    position: { x: 270, y: 345 },
+    position: { x: 365, y: 130 },
     data: {
       title: "Sales",
       description: "Qualifies new opportunities.",
@@ -79,7 +79,7 @@ const nodes: WorkflowFlowNode[] = [
   {
     id: "dacoo-ai",
     type: "workflow",
-    position: { x: 545, y: 240 },
+    position: { x: 240, y: 260 },
     data: {
       title: "Dacoo AI",
       description: "Creates a channel-ready reply.",
@@ -91,7 +91,7 @@ const nodes: WorkflowFlowNode[] = [
   {
     id: "messenger",
     type: "workflow",
-    position: { x: 815, y: 55 },
+    position: { x: 0, y: 390 },
     data: {
       title: "Messenger",
       description: "Delivers the response.",
@@ -103,7 +103,7 @@ const nodes: WorkflowFlowNode[] = [
   {
     id: "telegram",
     type: "workflow",
-    position: { x: 815, y: 240 },
+    position: { x: 240, y: 390 },
     data: {
       title: "Telegram",
       description: "Delivers the response.",
@@ -115,7 +115,7 @@ const nodes: WorkflowFlowNode[] = [
   {
     id: "email",
     type: "workflow",
-    position: { x: 815, y: 425 },
+    position: { x: 480, y: 390 },
     data: {
       title: "Email",
       description: "Delivers the response.",
@@ -185,7 +185,7 @@ function WorkflowCard({ data }: NodeProps<WorkflowFlowNode>) {
       {data.handles.target && (
         <Handle
           className="size-2! border-2! border-emerald-500! bg-background!"
-          position={Position.Left}
+          position={Position.Top}
           type="target"
         />
       )}
@@ -210,7 +210,7 @@ function WorkflowCard({ data }: NodeProps<WorkflowFlowNode>) {
       {data.handles.source && (
         <Handle
           className="size-2! border-2! border-emerald-500! bg-background!"
-          position={Position.Right}
+          position={Position.Bottom}
           type="source"
         />
       )}

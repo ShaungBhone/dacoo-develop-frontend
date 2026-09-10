@@ -125,17 +125,17 @@ describe("frame variants", () => {
     expect(html).toContain("group-focus-within/node:opacity-100")
   })
 
-  it("connects incoming and outgoing edges horizontally", () => {
+  it("connects incoming and outgoing edges vertically", () => {
     const elements = renderTree(actionData)
 
     expect(
       elements.find((element) => element.props.type === "target")?.props
         .position
-    ).toBe("left")
+    ).toBe("top")
     expect(
       elements.find((element) => element.props.type === "source")?.props
         .position
-    ).toBe("right")
+    ).toBe("bottom")
   })
 
   it("shows the derived provider chip in the footer", () => {
@@ -221,7 +221,7 @@ describe("configuration state", () => {
     expect(html).not.toContain("Configure this step")
   })
 
-  it("opens the inspector when the frame itself is activated", () => {
+  it("opens the inspector when the frame itself is double-clicked", () => {
     const onConfigure = vi.fn()
     const elements = renderTree({ ...actionData, onConfigure })
     const frame = elements.find(
@@ -229,8 +229,10 @@ describe("configuration state", () => {
     )
 
     expect(frame?.props.role).toBe("button")
-    const onClick = frame?.props.onClick as (() => void) | undefined
-    onClick?.()
+    const onDoubleClick = frame?.props.onDoubleClick as
+      | ((event: { stopPropagation: () => void }) => void)
+      | undefined
+    onDoubleClick?.({ stopPropagation: () => {} })
     expect(onConfigure).toHaveBeenCalledWith("node-1")
   })
 })
@@ -267,7 +269,7 @@ describe("condition branches", () => {
     expect(findByLabel(elements, "Add next step")).toBeUndefined()
   })
 
-  it("places both branch handles along the right side of the condition", () => {
+  it("places both branch handles along the bottom of the condition", () => {
     const elements = renderTree(conditionData)
     const branchHandles = elements.filter(
       (element) =>
@@ -277,7 +279,7 @@ describe("condition branches", () => {
 
     expect(branchHandles).toHaveLength(2)
     expect(
-      branchHandles.every((handle) => handle.props.position === "right")
+      branchHandles.every((handle) => handle.props.position === "bottom")
     ).toBe(true)
   })
 })

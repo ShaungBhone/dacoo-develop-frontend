@@ -29,25 +29,25 @@ export const Node = ({ handles, className, children, ...props }: NodeProps) => (
     )}
     {...props}
   >
-    {handles?.target && <Handle position={Position.Left} type="target" />}
+    {handles?.target && <Handle position={Position.Top} type="target" />}
     {handles?.source && !handles?.condition && (
-      <Handle position={Position.Right} type="source" />
+      <Handle position={Position.Bottom} type="source" />
     )}
     {handles?.condition && (
       <>
         <Handle
           id="true"
-          position={Position.Right}
+          position={Position.Bottom}
           type="source"
-          style={{ top: "35%" }}
-          className="top-[35%]"
+          style={{ left: "30%" }}
+          className="left-[30%]"
         />
         <Handle
           id="false"
-          position={Position.Right}
+          position={Position.Bottom}
           type="source"
-          style={{ top: "65%" }}
-          className="top-[65%]"
+          style={{ left: "70%" }}
+          className="left-[70%]"
         />
       </>
     )}

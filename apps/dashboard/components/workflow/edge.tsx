@@ -1,6 +1,8 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import type { EdgeProps, InternalNode, Node } from "@xyflow/react"
 import {
   BaseEdge,
@@ -27,8 +29,8 @@ const Temporary = ({
   sourceY,
   targetX,
   targetY,
-  sourcePosition = Position.Right,
-  targetPosition = Position.Left,
+  sourcePosition = Position.Bottom,
+  targetPosition = Position.Top,
 }: EdgeProps) => {
   const [edgePath] = getSmoothStepPath({
     sourcePosition,
@@ -87,9 +89,9 @@ const getEdgeParams = (
   sourceHandleId?: string | null,
   targetHandleId?: string | null
 ) => {
-  const sourcePos = Position.Right
+  const sourcePos = Position.Bottom
   const [sx, sy] = getHandleCoordsByPosition(source, sourcePos, sourceHandleId)
-  const targetPos = Position.Left
+  const targetPos = Position.Top
   const [tx, ty] = getHandleCoordsByPosition(target, targetPos, targetHandleId)
 
   return {
@@ -112,6 +114,17 @@ const Animated = ({
   style,
   data,
 }: EdgeProps) => {
+  const [isHovered, setIsHovered] = useState(false)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [])
+
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
 
@@ -140,38 +153,79 @@ const Animated = ({
   const strokeColor =
     style?.stroke && style.stroke !== "#22c55e" ? style.stroke : "var(--border)"
 
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+    setIsHovered(true)
+  }
+
+  const handleMouseLeave = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
+    timeoutRef.current = setTimeout(() => {
+      setIsHovered(false)
+    }, 100)
+  }
+
   return (
     <>
-      <BaseEdge
-        id={id}
-        markerEnd={markerEnd}
-        path={edgePath}
-        style={{
-          strokeWidth: 1.5,
-          ...style,
-          stroke: strokeColor,
-        }}
-      />
+      <g
+        onMouseEnter={onAddStep ? handleMouseEnter : undefined}
+        onMouseLeave={onAddStep ? handleMouseLeave : undefined}
+      >
+        {onAddStep && (
+          <path
+            d={edgePath}
+            fill="none"
+            stroke="transparent"
+            strokeWidth={24}
+            className="cursor-pointer"
+          />
+        )}
+        <BaseEdge
+          id={id}
+          markerEnd={markerEnd}
+          path={edgePath}
+          style={{
+            strokeWidth: 1.5,
+            ...style,
+            stroke: strokeColor,
+          }}
+        />
+      </g>
       {onAddStep && (
         <EdgeLabelRenderer>
-          <Button
-            size="xs"
-            variant="outline"
-            className="nodrag nopan pointer-events-auto absolute"
+          <div
+            className={cn(
+              "nodrag nopan absolute transition-opacity duration-150",
+              isHovered
+                ? "pointer-events-auto opacity-100"
+                : "pointer-events-none opacity-0"
+            )}
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             }}
-            aria-label="Add step here"
-            onClick={(event) => {
-              event.stopPropagation()
-              onAddStep(
-                source,
-                (sourceHandleId as WorkflowBranchId | null) ?? undefined
-              )
-            }}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
           >
-            <PlusIcon />
-          </Button>
+            <Button
+              size="xs"
+              variant="outline"
+              aria-label="Add step here"
+              onClick={(event) => {
+                event.stopPropagation()
+                onAddStep(
+                  source,
+                  (sourceHandleId as WorkflowBranchId | null) ?? undefined
+                )
+              }}
+            >
+              <PlusIcon />
+            </Button>
+          </div>
         </EdgeLabelRenderer>
       )}
     </>

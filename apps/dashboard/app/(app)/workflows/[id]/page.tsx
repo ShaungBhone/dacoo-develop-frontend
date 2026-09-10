@@ -24,10 +24,12 @@ import {
 import {
   attachNodeCallbacks,
   getChildNodePosition,
+  isLegacyHorizontalLayout,
+  layoutNodesTopToBottom,
   ROOT_NODE_POSITION,
 } from "@/components/workflow/workflow-node-utils"
 import { WorkflowRunsList } from "@/components/workflow/workflow-history"
-import { WorkflowInspectorSheet } from "@/components/workflow/workflow-inspector"
+import { WorkflowInspectorDialog } from "@/components/workflow/workflow-inspector"
 import { WorkflowTestRunModal } from "@/components/workflow/workflow-test-modal"
 import { useActiveOrganization } from "@/hooks/use-active-organization"
 import { apiFetch } from "@/lib/api"
@@ -44,6 +46,7 @@ import {
   type Edge as ReactFlowEdge,
 } from "@xyflow/react"
 import {
+  ArrowDownIcon,
   CopyIcon,
   HistoryIcon,
   InfoIcon,
@@ -297,8 +300,6 @@ export default function WorkflowBuilderPage() {
           ])
         }
 
-        setSelectedNodeId(id)
-        setInspectorOpen(true)
         toast.success(`Added ${typeLabel} step`)
 
         return [...nds, newNode]
@@ -357,13 +358,18 @@ export default function WorkflowBuilderPage() {
           setIsActive(Boolean(data.is_active))
           setWebhookUrl(data.webhook_url || null)
 
-          const loadedNodes = attachNodeCallbacks(
+          let loadedNodes = attachNodeCallbacks(
             data.nodes || [],
             nodeCallbacks
           )
+          const loadedEdges = data.edges || []
+
+          if (isLegacyHorizontalLayout(loadedNodes, loadedEdges)) {
+            loadedNodes = layoutNodesTopToBottom(loadedNodes, loadedEdges)
+          }
 
           setNodes(loadedNodes)
-          setEdges(data.edges || [])
+          setEdges(loadedEdges)
 
           // If workflow has zero nodes, automatically open the Trigger Selection Sidebar!
           if (loadedNodes.length === 0) {
@@ -465,6 +471,12 @@ export default function WorkflowBuilderPage() {
     [edges]
   )
 
+  // Auto-arrange all nodes from top to bottom
+  const handleAutoLayout = useCallback(() => {
+    setNodes((nds) => layoutNodesTopToBottom(nds, edges))
+    toast.success("Workflow arranged top to bottom")
+  }, [edges])
+
   // Node & Edge changes from React Flow
   const onNodesChange = useCallback(
     (changes: NodeChange<Node<WorkflowCardData>>[]) =>
@@ -494,8 +506,14 @@ export default function WorkflowBuilderPage() {
     []
   )
 
-  // Clicking a node opens inspector sheet
-  const onNodeClick = (_: React.MouseEvent, node: Node) => {
+  // Clicking a node closes open sidebars without popping open the modal
+  const onNodeClick = (_: React.MouseEvent) => {
+    setSelectionSidebarMode(null)
+    setStepInsertionTarget(null)
+  }
+
+  // Double-clicking a node opens the inspector dialog
+  const onNodeDoubleClick = (_: React.MouseEvent, node: Node) => {
     setSelectionSidebarMode(null)
     setStepInsertionTarget(null)
     setSelectedNodeId(node.id)
@@ -551,8 +569,6 @@ export default function WorkflowBuilderPage() {
     })
     setSelectionSidebarMode(null)
     setStepInsertionTarget(null)
-    setSelectedNodeId(triggerNodeId)
-    setInspectorOpen(true)
     toast.success(`Trigger added: ${trigger.title}`)
   }
 
@@ -663,8 +679,6 @@ export default function WorkflowBuilderPage() {
       ])
     }
 
-    setSelectedNodeId(newNode.id)
-    setInspectorOpen(true)
     toast.success(`Added ${typeLabel} block`)
   }
 
@@ -711,7 +725,7 @@ export default function WorkflowBuilderPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] w-full items-center justify-center">
+      <div className="flex h-full min-h-0 flex-1 w-full items-center justify-center">
         <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
           <Loader2Icon className="size-6 animate-spin text-emerald-600" />
           Loading workflow builder…
@@ -721,7 +735,7 @@ export default function WorkflowBuilderPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] w-full flex-col bg-background text-foreground overflow-hidden">
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-background text-foreground overflow-hidden">
       {/* Top Header matching Attio Layout */}
       <header className="flex flex-col border-b border-border bg-card/80 backdrop-blur-xs shrink-0">
         {/* Breadcrumbs Row */}
@@ -840,9 +854,9 @@ export default function WorkflowBuilderPage() {
 
       {/* Main Content Area based on activeTab */}
       {activeTab === "editor" && (
-        <div className="relative flex flex-1 overflow-hidden">
+        <div className="relative flex min-h-0 flex-1 overflow-hidden">
           {/* Left Column: Canvas Area + Top Notice Banner */}
-          <div className="relative flex flex-col flex-1 h-full overflow-hidden">
+          <div className="relative flex min-h-0 flex-col flex-1 h-full overflow-hidden">
             {/* Top Notice Banner when in Draft mode */}
             {!isActive && (
               <div className="flex items-center justify-between px-4 py-2 bg-sky-50 dark:bg-sky-950/40 border-b border-sky-200 dark:border-sky-900/60 shrink-0">
@@ -862,7 +876,7 @@ export default function WorkflowBuilderPage() {
             )}
 
             {/* Canvas Area */}
-            <div className="relative flex-1 h-full overflow-hidden">
+            <div className="relative flex-1 min-h-0 h-full overflow-hidden">
               {/* Empty State Overlay */}
               {nodes.length === 0 && (
                 <CanvasEmptyState
@@ -880,13 +894,25 @@ export default function WorkflowBuilderPage() {
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
                 onNodeClick={onNodeClick}
-                className="h-full w-full [&_.react-flow__handle]:size-3.5 [&_.react-flow__handle]:border-2 [&_.react-flow__handle]:border-slate-300 dark:[&_.react-flow__handle]:border-slate-600 [&_.react-flow__handle]:bg-background"
+                onNodeDoubleClick={onNodeDoubleClick}
+                className="h-full w-full"
                 fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
               >
                 <Controls position="bottom-left" />
 
                 {/* Floating Canvas Toolbar */}
                 <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAutoLayout}
+                    className="bg-card hover:bg-muted/60 text-xs gap-1.5 shadow-2xs rounded-lg"
+                    title="Arrange workflow top-to-bottom"
+                  >
+                    <ArrowDownIcon className="size-3.5 text-muted-foreground" />
+                    Auto layout
+                  </Button>
+
                   <Button
                     size="sm"
                     onClick={handleOpenBlockSidebar}
@@ -923,7 +949,7 @@ export default function WorkflowBuilderPage() {
 
       {/* Runs Tab */}
       {activeTab === "runs" && (
-        <div className="flex-1 overflow-y-auto p-6 bg-background">
+        <div className="flex-1 min-h-0 overflow-y-auto p-6 bg-background">
           <div className="mx-auto max-w-4xl space-y-4">
             <div className="flex items-center justify-between border-b pb-4">
               <div>
@@ -955,7 +981,7 @@ export default function WorkflowBuilderPage() {
 
       {/* Settings Tab */}
       {activeTab === "settings" && (
-        <div className="flex-1 overflow-y-auto p-6 bg-background">
+        <div className="flex-1 min-h-0 overflow-y-auto p-6 bg-background">
           <div className="mx-auto max-w-2xl space-y-6">
             <div className="border-b pb-4">
               <h2 className="text-lg font-semibold tracking-tight text-foreground">
@@ -1073,8 +1099,8 @@ export default function WorkflowBuilderPage() {
         </div>
       )}
 
-      {/* Node Inspector Sheet */}
-      <WorkflowInspectorSheet
+      {/* Node Inspector Dialog */}
+      <WorkflowInspectorDialog
         open={inspectorOpen}
         onOpenChange={setInspectorOpen}
         node={selectedNode ?? null}

@@ -8,7 +8,9 @@ import {
   getFrameBorderStyle,
   getMissingConfigKeys,
   getProviderLabel,
+  isLegacyHorizontalLayout,
   isNodeSetupComplete,
+  layoutNodesTopToBottom,
   NODE_VERTICAL_GAP,
   ROOT_NODE_POSITION,
 } from "./workflow-node-utils"
@@ -160,5 +162,95 @@ describe("attachNodeCallbacks", () => {
     const snapshot = JSON.stringify(saved)
     attachNodeCallbacks(saved, { onDelete: () => {} })
     expect(JSON.stringify(saved)).toBe(snapshot)
+  })
+})
+
+describe("isLegacyHorizontalLayout", () => {
+  it("detects horizontal chaining when target nodes are placed to the right", () => {
+    const horizontalNodes = [
+      { id: "1", position: { x: 50, y: 200 } },
+      { id: "2", position: { x: 380, y: 200 } },
+      { id: "3", position: { x: 710, y: 200 } },
+    ]
+    const edges = [
+      { source: "1", target: "2" },
+      { source: "2", target: "3" },
+    ]
+
+    expect(isLegacyHorizontalLayout(horizontalNodes, edges)).toBe(true)
+  })
+
+  it("returns false when nodes flow top to bottom", () => {
+    const verticalNodes = [
+      { id: "1", position: { x: 250, y: 100 } },
+      { id: "2", position: { x: 250, y: 380 } },
+      { id: "3", position: { x: 250, y: 660 } },
+    ]
+    const edges = [
+      { source: "1", target: "2" },
+      { source: "2", target: "3" },
+    ]
+
+    expect(isLegacyHorizontalLayout(verticalNodes, edges)).toBe(false)
+  })
+
+  it("handles empty or single node graphs without error", () => {
+    expect(isLegacyHorizontalLayout([], [])).toBe(false)
+    expect(isLegacyHorizontalLayout([{ id: "1", position: { x: 0, y: 0 } }], [])).toBe(false)
+  })
+})
+
+describe("layoutNodesTopToBottom", () => {
+  it("arranges a linear chain of nodes top to bottom with vertical gap", () => {
+    const nodes = [
+      { id: "trigger", position: { x: 50, y: 200 }, data: { tone: "trigger" } },
+      { id: "ai", position: { x: 380, y: 200 }, data: { tone: "ai" } },
+      { id: "action", position: { x: 710, y: 200 }, data: { tone: "action" } },
+    ]
+    const edges = [
+      { source: "trigger", target: "ai" },
+      { source: "ai", target: "action" },
+    ]
+
+    const arranged = layoutNodesTopToBottom(nodes, edges)
+
+    expect(arranged[0].position.y).toBe(ROOT_NODE_POSITION.y)
+    expect(arranged[1].position.y).toBe(ROOT_NODE_POSITION.y + NODE_VERTICAL_GAP)
+    expect(arranged[2].position.y).toBe(ROOT_NODE_POSITION.y + 2 * NODE_VERTICAL_GAP)
+    expect(arranged[0].position.x).toBe(ROOT_NODE_POSITION.x)
+    expect(arranged[1].position.x).toBe(ROOT_NODE_POSITION.x)
+    expect(arranged[2].position.x).toBe(ROOT_NODE_POSITION.x)
+  })
+
+  it("fans condition branches left for true and right for false", () => {
+    const nodes = [
+      { id: "cond", position: { x: 0, y: 0 }, data: { tone: "condition" } },
+      { id: "true-step", position: { x: 0, y: 0 }, data: { tone: "action" } },
+      { id: "false-step", position: { x: 0, y: 0 }, data: { tone: "action" } },
+    ]
+    const edges = [
+      { source: "cond", target: "true-step", sourceHandle: "true" },
+      { source: "cond", target: "false-step", sourceHandle: "false" },
+    ]
+
+    const arranged = layoutNodesTopToBottom(nodes, edges)
+    const condNode = arranged.find((n) => n.id === "cond")!
+    const trueNode = arranged.find((n) => n.id === "true-step")!
+    const falseNode = arranged.find((n) => n.id === "false-step")!
+
+    expect(condNode.position.y).toBe(ROOT_NODE_POSITION.y)
+    expect(trueNode.position.y).toBe(ROOT_NODE_POSITION.y + NODE_VERTICAL_GAP)
+    expect(falseNode.position.y).toBe(ROOT_NODE_POSITION.y + NODE_VERTICAL_GAP)
+
+    expect(trueNode.position.x).toBe(condNode.position.x - BRANCH_HORIZONTAL_OFFSET)
+    expect(falseNode.position.x).toBe(condNode.position.x + BRANCH_HORIZONTAL_OFFSET)
+  })
+
+  it("returns empty or single nodes unchanged", () => {
+    expect(layoutNodesTopToBottom([])).toEqual([])
+    const single = [{ id: "1", position: { x: 10, y: 20 } }]
+    expect(layoutNodesTopToBottom(single)).toEqual([
+      { id: "1", position: ROOT_NODE_POSITION },
+    ])
   })
 })

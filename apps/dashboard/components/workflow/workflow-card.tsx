@@ -15,7 +15,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { TypographyMuted } from "@/components/ui/typography"
 import { cn } from "@/lib/utils"
 import type { NodeProps } from "@xyflow/react"
 import { Handle, Position, useNodeConnections } from "@xyflow/react"
@@ -135,8 +134,13 @@ const defaultTypeLabels: Record<WorkflowTone, string> = {
 const revealOnHoverClassName =
   "pointer-events-none opacity-0 transition-opacity group-hover/node:pointer-events-auto group-hover/node:opacity-100 group-focus-within/node:pointer-events-auto group-focus-within/node:opacity-100"
 
-const handleClassName =
-  "size-3.5 rounded-full border-2 border-slate-300 bg-background transition-colors hover:border-sky-500 dark:border-slate-600 shadow-2xs"
+const handleClassName = cn(
+  "size-3! rounded-full! border-2! border-primary/40! bg-background! shadow-2xs! transition-all!",
+  "hover:border-primary! hover:ring-4! hover:ring-primary/25!",
+  "before:absolute! before:-inset-2! before:rounded-full! before:content-['']!",
+  "[&.connecting]:border-sky-400! [&.connecting]:animate-pulse! [&.react-flow__handle-connecting]:border-sky-400!",
+  "[&.valid]:border-emerald-500! [&.valid]:bg-emerald-50! dark:[&.valid]:bg-emerald-950/40! [&.react-flow__handle-valid]:border-emerald-500!"
+)
 
 export function WorkflowCard({
   id,
@@ -198,18 +202,14 @@ export function WorkflowCard({
             }
           />
           <TooltipContent side="top">
-            {nodeData.description && (
-              <TypographyMuted className="text-[11px] opacity-80">
-                {nodeData.description}
-              </TypographyMuted>
-            )}
+            Run trigger with mock data
           </TooltipContent>
         </Tooltip>
       ) : (
         <Badge
           variant="outline"
           className={cn(
-            "pointer-events-none absolute -top-6 left-1 z-20",
+            "pointer-events-none absolute -top-6 z-20",
             toneBadgeStyles[tone]
           )}
         >
@@ -298,7 +298,10 @@ export function WorkflowCard({
         spacing="xs"
         tabIndex={0}
         aria-label={nodeData.title}
-        onClick={openInspector}
+        onDoubleClick={(event) => {
+          event.stopPropagation()
+          openInspector()
+        }}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault()
@@ -315,7 +318,7 @@ export function WorkflowCard({
         {hasTarget && (
           <Handle
             type="target"
-            position={Position.Left}
+            position={Position.Top}
             className={handleClassName}
           />
         )}
@@ -326,7 +329,7 @@ export function WorkflowCard({
           </FrameTitle>
         </FrameHeader>
 
-        <FramePanel>
+        <FramePanel className="shadow-none">
           {nodeData.description ? (
             <p className="text-muted-foreground text-xs line-clamp-2">
               {nodeData.description}
@@ -343,10 +346,12 @@ export function WorkflowCard({
         </FramePanel>
 
         <FrameFooter>
-          <div className="flex items-center justify-between">
-            <Badge variant="secondary">
+          <div className="flex items-center justify-between gap-2">
+            <Badge
+              variant="invert"
+            >
               <IconComponent
-                className={cn("size-3 shrink-0", nodeData.iconClassName)}
+                className={cn("size-3 shrink-0")}
                 aria-hidden="true"
               />
               <span className="truncate">{providerLabel}</span>
@@ -369,7 +374,7 @@ export function WorkflowCard({
         {hasSource && !isCondition && (
           <Handle
             type="source"
-            position={Position.Right}
+            position={Position.Bottom}
             className={handleClassName}
           />
         )}
@@ -379,16 +384,16 @@ export function WorkflowCard({
             <Handle
               id="true"
               type="source"
-              position={Position.Right}
-              style={{ top: "35%" }}
-              className={cn(handleClassName, "border-emerald-500")}
+              position={Position.Bottom}
+              style={{ left: "30%" }}
+              className={cn(handleClassName, "border-emerald-500!")}
             />
             <Handle
               id="false"
               type="source"
-              position={Position.Right}
-              style={{ top: "65%" }}
-              className={cn(handleClassName, "border-rose-500")}
+              position={Position.Bottom}
+              style={{ left: "70%" }}
+              className={cn(handleClassName, "border-rose-500!")}
             />
           </>
         )}
@@ -398,8 +403,8 @@ export function WorkflowCard({
       {isCondition && (
         <>
           <div
-            style={{ top: "35%", right: "-2.5rem" }}
-            className="pointer-events-none absolute z-20 flex -translate-y-1/2 items-center gap-1"
+            style={{ left: "30%" }}
+            className="pointer-events-none absolute -bottom-7 z-20 flex -translate-x-1/2 items-center gap-1"
           >
             <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
               True
@@ -421,8 +426,8 @@ export function WorkflowCard({
             )}
           </div>
           <div
-            style={{ top: "65%", right: "-2.5rem" }}
-            className="pointer-events-none absolute z-20 flex -translate-y-1/2 items-center gap-1"
+            style={{ left: "70%" }}
+            className="pointer-events-none absolute -bottom-7 z-20 flex -translate-x-1/2 items-center gap-1"
           >
             <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">
               False

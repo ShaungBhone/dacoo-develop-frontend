@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -112,63 +113,56 @@ export function WorkflowTestRunModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
-              <PlayIcon className="size-4" />
-            </span>
-            <DialogTitle>Test Run: {workflowName}</DialogTitle>
-          </div>
+          <DialogTitle>Test Run: {workflowName}</DialogTitle>
           <DialogDescription>
-            Simulate a trigger event with sample payload data and inspect step execution in real time.
+            Simulate a trigger event with sample payload data.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <FieldGroup className="gap-2">
-            <Field>
-              <div className="flex items-center justify-between">
-                <FieldLabel htmlFor="test-payload">Sample Event Payload (JSON)</FieldLabel>
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="h-auto p-0 text-xs"
-                  onClick={() =>
-                    setPayloadText(
-                      JSON.stringify(
-                        {
-                          driver: "U Mya",
-                          vehicle_no: "MDY-2B/5678",
-                          kilo: 320,
-                          status: "On Time",
-                        },
-                        null,
-                        2
-                      )
+        <FieldGroup className="gap-4 py-2">
+          <Field>
+            <div className="flex items-center justify-between">
+              <FieldLabel htmlFor="test-payload">Sample Event Payload (JSON)</FieldLabel>
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-xs"
+                onClick={() =>
+                  setPayloadText(
+                    JSON.stringify(
+                      {
+                        driver: "U Mya",
+                        vehicle_no: "MDY-2B/5678",
+                        kilo: 320,
+                        status: "On Time",
+                      },
+                      null,
+                      2
                     )
-                  }
-                >
-                  Load Sample 2
-                </Button>
-              </div>
-              <Textarea
-                id="test-payload"
-                rows={6}
-                value={payloadText}
-                onChange={(e) => setPayloadText(e.target.value)}
-                className="font-mono text-xs"
-                spellCheck={false}
-              />
-              <FieldDescription>
-                Values in this payload will be accessible to your steps via <code>&#123;&#123;trigger.key&#125;&#125;</code>.
-              </FieldDescription>
-            </Field>
-          </FieldGroup>
+                  )
+                }
+              >
+                Load Sample 2
+              </Button>
+            </div>
+            <Textarea
+              id="test-payload"
+              rows={6}
+              value={payloadText}
+              onChange={(e) => setPayloadText(e.target.value)}
+              className="font-mono text-xs"
+              spellCheck={false}
+            />
+            <FieldDescription>
+              Values in this payload will be accessible to your steps via <code>&#123;&#123;trigger.key&#125;&#125;</code>.
+            </FieldDescription>
+          </Field>
 
           {/* Results section */}
           {runResult && (
-            <div className="space-y-3 pt-3 border-t">
+            <div className="space-y-3 pt-2">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-semibold flex items-center gap-1.5">
                   {runResult.status === "completed" ? (
@@ -228,29 +222,24 @@ export function WorkflowTestRunModal({
               </div>
             </div>
           )}
-        </div>
+        </FieldGroup>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" disabled={isRunning} />}>
+            Cancel
+          </DialogClose>
           <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isRunning}
-          >
-            Close
-          </Button>
-          <Button
+            type="button"
             onClick={handleRun}
             disabled={isRunning}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
           >
             {isRunning ? (
               <>
-                <Loader2Icon className="size-4 mr-2 animate-spin" />
+                <Loader2Icon className="size-4 animate-spin" />
                 Executing…
               </>
             ) : (
               <>
-                <PlayIcon className="size-4 mr-2" />
                 Run Test
               </>
             )}

@@ -30,13 +30,12 @@ export function Canvas<
       proOptions={{ hideAttribution: true }}
     >
       <Background
-        variant={BackgroundVariant.Lines}
-        gap={32}
-        lineWidth={1}
+        variant={BackgroundVariant.Dots}
+        gap={16}
+        size={1}
         color="var(--border)"
         bgColor="var(--sidebar)"
-        patternClassName="[stroke-dasharray:5_5]"
-        className="opacity-40"
+        className="dark:opacity-40"
       />
       {children}
     </ReactFlow>

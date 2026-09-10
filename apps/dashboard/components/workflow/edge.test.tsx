@@ -2,9 +2,21 @@ import { createElement } from "react"
 import { describe, expect, it, vi } from "vitest"
 
 /**
- * `@xyflow/react` is stubbed so the edge component can be called directly and
- * its element tree inspected without a canvas or a DOM.
+ * React hooks and `@xyflow/react` are stubbed so the edge component can be called
+ * directly and its element tree inspected without a canvas or a DOM.
  */
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>()
+  return {
+    ...actual,
+    useState: (initial: unknown) => [
+      typeof initial === "function" ? (initial as () => unknown)() : initial,
+      vi.fn(),
+    ],
+    useRef: (initial: unknown) => ({ current: initial }),
+    useEffect: vi.fn(),
+  }
+})
 vi.mock("@xyflow/react", () => {
   const node = {
     internals: {
@@ -107,5 +119,22 @@ describe("edge midpoint Add", () => {
         (element) => element.props["aria-label"] === "Add step here"
       )
     ).toBeUndefined()
+  })
+
+  it("hides the Add step button until hovered", () => {
+    const onAddStep = vi.fn()
+    const elements = renderEdge({ ...baseProps, data: { onAddStep } })
+    const button = elements.find(
+      (element) => element.props["aria-label"] === "Add step here"
+    )
+    expect(button).toBeDefined()
+
+    const wrapper = elements.find(
+      (element) =>
+        typeof element.props.className === "string" &&
+        element.props.className.includes("opacity-0") &&
+        element.props.className.includes("pointer-events-none")
+    )
+    expect(wrapper).toBeDefined()
   })
 })
