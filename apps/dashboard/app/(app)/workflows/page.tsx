@@ -33,6 +33,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { WorkflowTestRunModal } from "@/components/workflow/workflow-test-modal"
+import { useTranslation } from "@/contexts/language-context"
 
 type WorkflowItem = {
   id: string
@@ -60,6 +61,7 @@ type TemplateItem = {
 export default function WorkflowsPage() {
   const router = useRouter()
   const activeOrg = useActiveOrganization()
+  const { t } = useTranslation()
 
   const [workflows, setWorkflows] = useState<WorkflowItem[]>([])
   const [templates, setTemplates] = useState<TemplateItem[]>([])
@@ -68,14 +70,19 @@ export default function WorkflowsPage() {
 
   // Create Modal state
   const [createOpen, setCreateOpen] = useState(false)
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("transport-dispatch-automation")
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
+    "transport-dispatch-automation"
+  )
   const [workflowName, setWorkflowName] = useState("")
   const [workflowDescription, setWorkflowDescription] = useState("")
   const [isCreating, setIsCreating] = useState(false)
 
   // Test Run Modal state
   const [testModalOpen, setTestModalOpen] = useState(false)
-  const [activeTestWorkflow, setActiveTestWorkflow] = useState<{ id: string; name: string } | null>(null)
+  const [activeTestWorkflow, setActiveTestWorkflow] = useState<{
+    id: string
+    name: string
+  } | null>(null)
 
   const refetchWorkflows = async () => {
     if (!activeOrg?.id) return
@@ -83,10 +90,11 @@ export default function WorkflowsPage() {
       const res = await apiFetch<{ data?: WorkflowItem[] } | WorkflowItem[]>(
         `/api/v1/organizations/${activeOrg.id}/workflows`
       )
-      const data = "data" in res && res.data ? res.data : (Array.isArray(res) ? res : [])
+      const data =
+        "data" in res && res.data ? res.data : Array.isArray(res) ? res : []
       setWorkflows(data)
     } catch {
-      toast.error("Failed to load workflows")
+      toast.error(t("workflows.notifications.loadFailed"))
     }
   }
 
@@ -109,32 +117,45 @@ export default function WorkflowsPage() {
 
         if (!ignore) {
           if (wfRes) {
-            const data = "data" in wfRes && wfRes.data ? wfRes.data : (Array.isArray(wfRes) ? wfRes : [])
+            const data =
+              "data" in wfRes && wfRes.data
+                ? wfRes.data
+                : Array.isArray(wfRes)
+                  ? wfRes
+                  : []
             setWorkflows(data)
           }
           if (tplRes) {
-            const data = "data" in tplRes && tplRes.data ? tplRes.data : (Array.isArray(tplRes) ? tplRes : [])
+            const data =
+              "data" in tplRes && tplRes.data
+                ? tplRes.data
+                : Array.isArray(tplRes)
+                  ? tplRes
+                  : []
             setTemplates(data)
           } else {
             setTemplates([
               {
                 id: "transport-dispatch-automation",
                 name: "Transport & Dispatch Automation",
-                description: "Extract waybill and kilometer data from inbound form, sync Driver & Waybill records, and alert Telegram if delayed.",
+                description:
+                  "Extract waybill and kilometer data from inbound form, sync Driver & Waybill records, and alert Telegram if delayed.",
                 icon: "Truck",
                 trigger_type: "webhook",
               },
               {
                 id: "lead-notification",
                 name: "New Inbound Lead to Messenger",
-                description: "When a new contact record is created, evaluate inquiry urgency and send an instant Messenger notification to the team.",
+                description:
+                  "When a new contact record is created, evaluate inquiry urgency and send an instant Messenger notification to the team.",
                 icon: "MessageSquare",
                 trigger_type: "record.created",
               },
               {
                 id: "blank-canvas",
                 name: "Blank Canvas",
-                description: "Start completely from scratch with an empty canvas and trigger block.",
+                description:
+                  "Start completely from scratch with an empty canvas and trigger block.",
                 icon: "Sparkles",
                 trigger_type: "manual",
               },
@@ -165,16 +186,20 @@ export default function WorkflowsPage() {
         {
           method: "POST",
           body: {
-            name: "Untitled Workflow",
+            name: t("workflows.untitledName"),
             is_active: false,
           },
         }
       )
 
-      const created = "data" in res && res.data ? res.data : (res as { id: string })
+      const created =
+        "data" in res && res.data ? res.data : (res as { id: string })
       router.push(`/workflows/${created.id}`)
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to create workflow"
+      const message =
+        err instanceof Error
+          ? err.message
+          : t("workflows.notifications.createFailed")
       toast.error(message)
     } finally {
       setIsCreating(false)
@@ -198,12 +223,16 @@ export default function WorkflowsPage() {
         }
       )
 
-      const created = "data" in res && res.data ? res.data : (res as { id: string })
-      toast.success("Workflow created successfully")
+      const created =
+        "data" in res && res.data ? res.data : (res as { id: string })
+      toast.success(t("workflows.notifications.created"))
       setCreateOpen(false)
       router.push(`/workflows/${created.id}`)
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to create workflow"
+      const message =
+        err instanceof Error
+          ? err.message
+          : t("workflows.notifications.createFailed")
       toast.error(message)
     } finally {
       setIsCreating(false)
@@ -218,35 +247,33 @@ export default function WorkflowsPage() {
     )
 
     try {
-      await apiFetch(
-        `/api/v1/organizations/${activeOrg.id}/workflows/${id}`,
-        {
-          method: "PUT",
-          body: { is_active: !current },
-        }
+      await apiFetch(`/api/v1/organizations/${activeOrg.id}/workflows/${id}`, {
+        method: "PUT",
+        body: { is_active: !current },
+      })
+      toast.success(
+        !current
+          ? t("workflows.notifications.activated")
+          : t("workflows.notifications.paused")
       )
-      toast.success(!current ? "Workflow activated" : "Workflow paused")
     } catch {
-      toast.error("Failed to update status")
+      toast.error(t("workflows.notifications.updateFailed"))
       void refetchWorkflows()
     }
   }
 
   const handleDelete = async (id: string, name: string) => {
     if (!activeOrg?.id) return
-    if (!confirm(`Are you sure you want to delete workflow "${name}"?`)) return
+    if (!confirm(t("workflows.deleteConfirmation", { name }))) return
 
     try {
-      await apiFetch(
-        `/api/v1/organizations/${activeOrg.id}/workflows/${id}`,
-        {
-          method: "DELETE",
-        }
-      )
+      await apiFetch(`/api/v1/organizations/${activeOrg.id}/workflows/${id}`, {
+        method: "DELETE",
+      })
       setWorkflows((prev) => prev.filter((w) => w.id !== id))
-      toast.success("Workflow deleted")
+      toast.success(t("workflows.notifications.deleted"))
     } catch {
-      toast.error("Failed to delete workflow")
+      toast.error(t("workflows.notifications.deleteFailed"))
     }
   }
 
@@ -257,72 +284,130 @@ export default function WorkflowsPage() {
     setCreateOpen(true)
   }
 
+  const getTemplateText = (template: TemplateItem) => {
+    if (template.id === "transport-dispatch-automation") {
+      return {
+        name: t("workflows.templates.transport.name"),
+        description: t("workflows.templates.transport.description"),
+      }
+    }
+
+    if (template.id === "lead-notification") {
+      return {
+        name: t("workflows.templates.lead.name"),
+        description: t("workflows.templates.lead.description"),
+      }
+    }
+
+    if (template.id === "blank-canvas") {
+      return {
+        name: t("workflows.templates.blank.name"),
+        description: t("workflows.templates.blank.description"),
+      }
+    }
+
+    return template
+  }
+
+  const getTriggerTypeLabel = (triggerType: string) => {
+    if (triggerType === "webhook") {
+      return t("workflows.triggerTypes.webhook")
+    }
+
+    if (triggerType === "record.created") {
+      return t("workflows.triggerTypes.recordCreated")
+    }
+
+    if (triggerType === "manual") {
+      return t("workflows.triggerTypes.manual")
+    }
+
+    return triggerType.replace(".", " ")
+  }
+
+  const getStatusLabel = (status: string) => {
+    const knownStatuses = [
+      "completed",
+      "failed",
+      "pending",
+      "running",
+      "skipped",
+    ]
+
+    return knownStatuses.includes(status)
+      ? t(`workflows.statuses.${status}`)
+      : status
+  }
+
   const filteredWorkflows = workflows.filter(
     (w) =>
       w.name.toLowerCase().includes(search.toLowerCase()) ||
-      (w.description && w.description.toLowerCase().includes(search.toLowerCase()))
+      (w.description &&
+        w.description.toLowerCase().includes(search.toLowerCase()))
   )
 
   return (
-    <div className="flex-1 space-y-8 p-8 max-w-7xl mx-auto">
+    <div className="mx-auto max-w-7xl flex-1 space-y-8 p-8">
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Workflows
+              {t("workflows.title")}
             </h1>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground tabular-nums">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
               {workflows.length}
             </span>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Build visual automations for dispatch recording, customer updates, and record syncing.
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t("workflows.subtitle")}
           </p>
         </div>
 
         <Button
           onClick={handleQuickCreateWorkflow}
           disabled={isCreating}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs"
+          className="bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700"
         >
           {isCreating ? (
-            <Loader2Icon className="size-4 mr-1.5 animate-spin" />
+            <Loader2Icon className="mr-1.5 size-4 animate-spin" />
           ) : (
-            <PlusIcon className="size-4 mr-1.5" />
+            <PlusIcon className="mr-1.5 size-4" />
           )}
-          New Workflow
+          {t("workflows.newWorkflow")}
         </Button>
       </div>
 
       {/* Starter Templates Banner */}
       <div className="space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Starter Templates
+        <h2 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+          {t("workflows.starterTemplates")}
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div
             onClick={() =>
               openCreateWithTemplate(
                 "transport-dispatch-automation",
-                "Transport & Dispatch Waybill Automation"
+                t("workflows.templates.transport.defaultName")
               )
             }
-            className="group cursor-pointer rounded-xl border bg-card p-4 hover:border-emerald-500/50 hover:shadow-sm transition-all"
+            className="group cursor-pointer rounded-xl border bg-card p-4 transition-all hover:border-emerald-500/50 hover:shadow-sm"
           >
             <div className="flex items-center gap-3">
               <span className="flex size-9 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400">
                 <TruckIcon className="size-5" />
               </span>
               <div className="min-w-0">
-                <h3 className="text-sm font-medium text-foreground group-hover:text-emerald-600 transition-colors truncate">
-                  Transport & Dispatch Automation
+                <h3 className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-emerald-600">
+                  {t("workflows.templates.transport.name")}
                 </h3>
-                <span className="text-[11px] text-muted-foreground">Inbound Webhook</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {t("workflows.triggerTypes.webhook")}
+                </span>
               </div>
             </div>
-            <p className="mt-2.5 line-clamp-2 text-xs text-muted-foreground leading-relaxed">
-              Extract waybill and kilometer data from forms, sync Driver records, and alert Telegram if delayed.
+            <p className="mt-2.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+              {t("workflows.templates.transport.description")}
             </p>
           </div>
 
@@ -330,44 +415,48 @@ export default function WorkflowsPage() {
             onClick={() =>
               openCreateWithTemplate(
                 "lead-notification",
-                "Inbound Lead to Messenger"
+                t("workflows.templates.lead.defaultName")
               )
             }
-            className="group cursor-pointer rounded-xl border bg-card p-4 hover:border-emerald-500/50 hover:shadow-sm transition-all"
+            className="group cursor-pointer rounded-xl border bg-card p-4 transition-all hover:border-emerald-500/50 hover:shadow-sm"
           >
             <div className="flex items-center gap-3">
               <span className="flex size-9 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">
                 <MessageSquareIcon className="size-5" />
               </span>
               <div className="min-w-0">
-                <h3 className="text-sm font-medium text-foreground group-hover:text-emerald-600 transition-colors truncate">
-                  New Lead Notification
+                <h3 className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-emerald-600">
+                  {t("workflows.templates.lead.name")}
                 </h3>
-                <span className="text-[11px] text-muted-foreground">Record Created</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {t("workflows.triggerTypes.recordCreated")}
+                </span>
               </div>
             </div>
-            <p className="mt-2.5 line-clamp-2 text-xs text-muted-foreground leading-relaxed">
-              Score new leads with AI and deliver instant alerts directly to Facebook Messenger.
+            <p className="mt-2.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+              {t("workflows.templates.lead.description")}
             </p>
           </div>
 
           <div
             onClick={handleQuickCreateWorkflow}
-            className="group cursor-pointer rounded-xl border border-dashed bg-card/60 p-4 hover:border-foreground/40 hover:shadow-sm transition-all"
+            className="group cursor-pointer rounded-xl border border-dashed bg-card/60 p-4 transition-all hover:border-foreground/40 hover:shadow-sm"
           >
             <div className="flex items-center gap-3">
               <span className="flex size-9 items-center justify-center rounded-lg bg-muted text-foreground">
                 <SparklesIcon className="size-5" />
               </span>
               <div className="min-w-0">
-                <h3 className="text-sm font-medium text-foreground group-hover:text-foreground transition-colors truncate">
-                  Blank Canvas
+                <h3 className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-foreground">
+                  {t("workflows.templates.blank.name")}
                 </h3>
-                <span className="text-[11px] text-muted-foreground">Start from scratch</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {t("workflows.templates.blank.label")}
+                </span>
               </div>
             </div>
-            <p className="mt-2.5 line-clamp-2 text-xs text-muted-foreground leading-relaxed">
-              Start with an empty canvas and compose your own custom triggers, AI steps, and actions.
+            <p className="mt-2.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+              {t("workflows.templates.blank.description")}
             </p>
           </div>
         </div>
@@ -376,12 +465,12 @@ export default function WorkflowsPage() {
       {/* Search & Workflows Table */}
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-sm">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <div className="relative max-w-sm flex-1">
+            <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search workflows…"
+              placeholder={t("workflows.searchPlaceholder")}
               className="pl-9 text-sm"
             />
           </div>
@@ -389,34 +478,34 @@ export default function WorkflowsPage() {
 
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 text-sm text-muted-foreground">
-            <Loader2Icon className="size-6 animate-spin mb-3 text-emerald-600" />
-            Loading workflows…
+            <Loader2Icon className="mb-3 size-6 animate-spin text-emerald-600" />
+            {t("workflows.loading")}
           </div>
         ) : filteredWorkflows.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-12 text-center bg-card/40">
-            <div className="flex justify-center mb-3">
+          <div className="rounded-xl border border-dashed bg-card/40 p-12 text-center">
+            <div className="mb-3 flex justify-center">
               <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
                 <WorkflowIcon className="size-5" />
               </span>
             </div>
             <h3 className="text-base font-semibold text-foreground">
-              {search ? "No matching workflows found" : "No workflows created yet"}
+              {search ? t("workflows.noMatches") : t("workflows.noWorkflows")}
             </h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+            <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
               {search
-                ? "Try searching with different keywords."
-                : "Select a starter template above or start from scratch to build your first automation."}
+                ? t("workflows.tryDifferentKeywords")
+                : t("workflows.emptyDescription")}
             </p>
           </div>
         ) : (
-          <div className="rounded-xl border bg-card overflow-hidden shadow-2xs">
+          <div className="overflow-hidden rounded-xl border bg-card shadow-2xs">
             <div className="divide-y">
               {filteredWorkflows.map((workflow) => (
                 <div
                   key={workflow.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-4 gap-4 hover:bg-muted/25 transition-colors"
+                  className="flex flex-col justify-between gap-4 p-4 transition-colors hover:bg-muted/25 sm:flex-row sm:items-center"
                 >
-                  <div className="flex items-start gap-3.5 min-w-0">
+                  <div className="flex min-w-0 items-start gap-3.5">
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-foreground">
                       <WorkflowIcon className="size-4 text-muted-foreground" />
                     </span>
@@ -425,38 +514,42 @@ export default function WorkflowsPage() {
                       <div className="flex items-center gap-2">
                         <Link
                           href={`/workflows/${workflow.id}`}
-                          className="font-semibold text-sm text-foreground hover:text-emerald-600 transition-colors truncate"
+                          className="truncate text-sm font-semibold text-foreground transition-colors hover:text-emerald-600"
                         >
                           {workflow.name}
                         </Link>
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border bg-muted/50 text-muted-foreground capitalize">
-                          {workflow.trigger_type.replace(".", " ")}
+                        <span className="rounded-full border bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground capitalize">
+                          {getTriggerTypeLabel(workflow.trigger_type)}
                         </span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                        {workflow.description || "No description provided"}
+                      <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                        {workflow.description || t("workflows.noDescription")}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-6 shrink-0 justify-between sm:justify-end">
+                  <div className="flex shrink-0 items-center justify-between gap-6 sm:justify-end">
                     {/* Runs stats */}
-                    <div className="text-right hidden md:block">
-                      <div className="text-xs font-semibold tabular-nums text-foreground">
-                        {workflow.runs_count}&nbsp;runs
+                    <div className="hidden text-right md:block">
+                      <div className="text-xs font-semibold text-foreground tabular-nums">
+                        {t("workflows.runs", {
+                          count: workflow.runs_count,
+                        })}
                       </div>
                       <div className="text-[11px] text-muted-foreground">
                         {workflow.last_run ? (
-                          <span className="flex items-center gap-1 justify-end">
+                          <span className="flex items-center justify-end gap-1">
                             {workflow.last_run.status === "completed" ? (
                               <CheckCircle2Icon className="size-3 text-emerald-600" />
                             ) : (
                               <AlertCircleIcon className="size-3 text-destructive" />
                             )}
-                            Last run {workflow.last_run.status}
+                            {t("workflows.lastRun", {
+                              status: getStatusLabel(workflow.last_run.status),
+                            })}
                           </span>
                         ) : (
-                          "Never executed"
+                          t("workflows.neverExecuted")
                         )}
                       </div>
                     </div>
@@ -468,10 +561,12 @@ export default function WorkflowsPage() {
                         onCheckedChange={() =>
                           handleToggleActive(workflow.id, workflow.is_active)
                         }
-                        aria-label="Toggle active status"
+                        aria-label={t("workflows.toggleActive")}
                       />
-                      <span className="text-xs text-muted-foreground hidden sm:inline">
-                        {workflow.is_active ? "Active" : "Paused"}
+                      <span className="hidden text-xs text-muted-foreground sm:inline">
+                        {workflow.is_active
+                          ? t("workflows.active")
+                          : t("workflows.paused")}
                       </span>
                     </div>
 
@@ -481,22 +576,25 @@ export default function WorkflowsPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setActiveTestWorkflow({ id: workflow.id, name: workflow.name })
+                          setActiveTestWorkflow({
+                            id: workflow.id,
+                            name: workflow.name,
+                          })
                           setTestModalOpen(true)
                         }}
-                        className="text-xs h-8 text-muted-foreground hover:text-foreground"
+                        className="h-8 text-xs text-muted-foreground hover:text-foreground"
                       >
-                        <PlayIcon className="size-3.5 mr-1 text-emerald-600" />
-                        Test
+                        <PlayIcon className="mr-1 size-3.5 text-emerald-600" />
+                        {t("workflows.test")}
                       </Button>
 
                       <Button
                         variant="outline"
                         size="sm"
                         render={<Link href={`/workflows/${workflow.id}`} />}
-                        className="text-xs h-8"
+                        className="h-8 text-xs"
                       >
-                        Open Builder
+                        {t("workflows.openBuilder")}
                       </Button>
 
                       <Button
@@ -504,7 +602,7 @@ export default function WorkflowsPage() {
                         size="icon"
                         onClick={() => handleDelete(workflow.id, workflow.name)}
                         className="size-8 text-muted-foreground hover:text-destructive"
-                        aria-label="Delete workflow"
+                        aria-label={t("workflows.deleteWorkflow")}
                       >
                         <Trash2Icon className="size-4" />
                       </Button>
@@ -521,55 +619,67 @@ export default function WorkflowsPage() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Create Workflow</DialogTitle>
+            <DialogTitle>{t("workflows.createDialog.title")}</DialogTitle>
             <DialogDescription>
-              Set up a visual automation flow to handle repetitive tasks.
+              {t("workflows.createDialog.description")}
             </DialogDescription>
           </DialogHeader>
 
           <FieldGroup className="gap-4 py-2">
             <Field>
-              <FieldLabel htmlFor="wf-name">Workflow Name</FieldLabel>
+              <FieldLabel htmlFor="wf-name">
+                {t("workflows.createDialog.name")}
+              </FieldLabel>
               <Input
                 id="wf-name"
                 value={workflowName}
                 onChange={(e) => setWorkflowName(e.target.value)}
-                placeholder="e.g. Waybill Dispatch Automation"
+                placeholder={t("workflows.createDialog.namePlaceholder")}
                 autoFocus
               />
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="wf-desc">Description (Optional)</FieldLabel>
+              <FieldLabel htmlFor="wf-desc">
+                {t("workflows.createDialog.optionalDescription")}
+              </FieldLabel>
               <Input
                 id="wf-desc"
                 value={workflowDescription}
                 onChange={(e) => setWorkflowDescription(e.target.value)}
-                placeholder="What this workflow accomplishes…"
+                placeholder={t("workflows.createDialog.descriptionPlaceholder")}
               />
             </Field>
 
             <Field>
-              <FieldLabel>Template Preset</FieldLabel>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {templates.map((tmpl) => (
-                  <button
-                    key={tmpl.id}
-                    type="button"
-                    onClick={() => setSelectedTemplateId(tmpl.id)}
-                    className={cn(
-                      "w-full text-left p-2.5 rounded-lg border text-xs transition-all",
-                      selectedTemplateId === tmpl.id
-                        ? "border-emerald-500 bg-emerald-500/5 ring-1 ring-emerald-500"
-                        : "hover:bg-muted/40"
-                    )}
-                  >
-                    <div className="font-semibold text-foreground">{tmpl.name}</div>
-                    <div className="text-muted-foreground line-clamp-1 mt-0.5">
-                      {tmpl.description}
-                    </div>
-                  </button>
-                ))}
+              <FieldLabel>
+                {t("workflows.createDialog.templatePreset")}
+              </FieldLabel>
+              <div className="max-h-48 space-y-2 overflow-y-auto">
+                {templates.map((tmpl) => {
+                  const templateText = getTemplateText(tmpl)
+
+                  return (
+                    <button
+                      key={tmpl.id}
+                      type="button"
+                      onClick={() => setSelectedTemplateId(tmpl.id)}
+                      className={cn(
+                        "w-full rounded-lg border p-2.5 text-left text-xs transition-all",
+                        selectedTemplateId === tmpl.id
+                          ? "border-emerald-500 bg-emerald-500/5 ring-1 ring-emerald-500"
+                          : "hover:bg-muted/40"
+                      )}
+                    >
+                      <div className="font-semibold text-foreground">
+                        {templateText.name}
+                      </div>
+                      <div className="mt-0.5 line-clamp-1 text-muted-foreground">
+                        {templateText.description}
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </Field>
           </FieldGroup>
@@ -580,20 +690,20 @@ export default function WorkflowsPage() {
               onClick={() => setCreateOpen(false)}
               disabled={isCreating}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleCreateWorkflow}
               disabled={isCreating || !workflowName.trim()}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
             >
               {isCreating ? (
                 <>
-                  <Loader2Icon className="size-4 mr-1.5 animate-spin" />
-                  Creating…
+                  <Loader2Icon className="mr-1.5 size-4 animate-spin" />
+                  {t("workflows.createDialog.creating")}
                 </>
               ) : (
-                "Create Workflow"
+                t("workflows.createDialog.create")
               )}
             </Button>
           </DialogFooter>

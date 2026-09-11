@@ -14,6 +14,7 @@ export const en = {
     companies: "Companies",
     inbox: "Inbox",
     activity: "Activity",
+    workflows: "Workflows",
     billing: "Billing",
     invoices: "Invoices",
     balance: "Balance",
@@ -64,5 +65,100 @@ export const en = {
     noRelevantInfoTitle: "We do not provide this service.",
     noRelevantInfoDesc:
       "We couldn't find any relevant information matching “{query}” in our knowledge base.",
+  },
+  workflows: {
+    title: "Workflows",
+    subtitle:
+      "Build visual automations for dispatch recording, customer updates, and record syncing.",
+    newWorkflow: "New Workflow",
+    untitledName: "Untitled Workflow",
+    starterTemplates: "Starter Templates",
+    searchPlaceholder: "Search workflows…",
+    loading: "Loading workflows…",
+    noMatches: "No matching workflows found",
+    noWorkflows: "No workflows created yet",
+    tryDifferentKeywords: "Try searching with different keywords.",
+    emptyDescription:
+      "Select a starter template above or start from scratch to build your first automation.",
+    noDescription: "No description provided",
+    runs: "{count} runs",
+    lastRun: "Last run {status}",
+    neverExecuted: "Never executed",
+    active: "Active",
+    paused: "Paused",
+    test: "Test",
+    openBuilder: "Open Builder",
+    toggleActive: "Toggle active status",
+    deleteWorkflow: "Delete workflow",
+    deleteConfirmation: "Are you sure you want to delete workflow “{name}”?",
+    statuses: {
+      completed: "completed",
+      failed: "failed",
+      pending: "pending",
+      running: "running",
+      skipped: "skipped",
+    },
+    triggerTypes: {
+      webhook: "Inbound Webhook",
+      recordCreated: "Record Created",
+      manual: "Manual",
+    },
+    templates: {
+      transport: {
+        name: "Transport & Dispatch Automation",
+        defaultName: "Transport & Dispatch Waybill Automation",
+        description:
+          "Extract waybill and kilometer data from forms, sync Driver records, and alert Telegram if delayed.",
+      },
+      lead: {
+        name: "New Lead Notification",
+        defaultName: "Inbound Lead to Messenger",
+        description:
+          "Score new leads with AI and deliver instant alerts directly to Facebook Messenger.",
+      },
+      blank: {
+        name: "Blank Canvas",
+        label: "Start from scratch",
+        description:
+          "Start with an empty canvas and compose your own custom triggers, AI steps, and actions.",
+      },
+    },
+    createDialog: {
+      title: "Create Workflow",
+      description:
+        "Set up a visual automation flow to handle repetitive tasks.",
+      name: "Workflow Name",
+      namePlaceholder: "e.g. Waybill Dispatch Automation",
+      optionalDescription: "Description (Optional)",
+      descriptionPlaceholder: "What this workflow accomplishes…",
+      templatePreset: "Template Preset",
+      creating: "Creating…",
+      create: "Create Workflow",
+    },
+    testRun: {
+      title: "Test Run: {name}",
+      description: "Simulate a trigger event with sample payload data.",
+      payloadLabel: "Sample Event Payload (JSON)",
+      loadSample: "Load Sample 2",
+      payloadHelp:
+        "Values in this payload will be accessible to your steps via {{trigger.key}}.",
+      results: "Execution Results",
+      branch: "Branch: {branch}",
+      executing: "Executing…",
+      run: "Run Test",
+    },
+    notifications: {
+      loadFailed: "Failed to load workflows",
+      createFailed: "Failed to create workflow",
+      created: "Workflow created successfully",
+      activated: "Workflow activated",
+      paused: "Workflow paused",
+      updateFailed: "Failed to update status",
+      deleted: "Workflow deleted",
+      deleteFailed: "Failed to delete workflow",
+      invalidJson: "Invalid JSON payload. Please check your syntax.",
+      testCompleted: "Workflow test completed successfully",
+      testFailed: "Failed to execute workflow test",
+    },
   },
 }
