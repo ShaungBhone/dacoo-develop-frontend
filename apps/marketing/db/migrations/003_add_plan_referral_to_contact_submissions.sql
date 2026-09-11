@@ -1,0 +1,3 @@
+ALTER TABLE contact_submissions
+  ADD COLUMN IF NOT EXISTS plan VARCHAR(80),
+  ADD COLUMN IF NOT EXISTS referral_code VARCHAR(60);

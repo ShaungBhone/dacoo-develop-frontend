@@ -1,22 +1,23 @@
 # Dacoo frontend
 
-This Bun workspace contains the Dacoo customer dashboard and authenticated customer guide.
+This Bun workspace contains Dacoo's customer-facing web applications.
 
 ## Applications
 
 - `apps/dashboard` — customer application
 - `apps/docs` — bilingual documentation site for `docs.dacoo.co`
+- `apps/marketing` — public marketing site for `dacoo.co`
 - `packages/ui` — shared brand and UI primitives
 
-Run `bun run dev:dashboard` and `bun run dev:docs` in separate terminals. The docs app defaults to port 3001.
+Run `bun run dev:dashboard`, `bun run dev:docs`, and `bun run dev:marketing` in separate terminals. The dashboard uses port 3000, docs uses port 3001, and marketing uses port 3002.
 
 ## Environment
 
-The root `.env.example` is the complete variable reference. Copy each app's scoped example to `apps/dashboard/.env.local` or `apps/docs/.env.local` and configure the Laravel API URL. The backend must also set `DOCS_URL` to the public docs origin.
+Copy each app's scoped example to its local environment file. Dashboard and docs require the Laravel API URL; marketing requires the database and Telegram settings listed in `apps/marketing/.env.example`. The backend must also set `DOCS_URL` to the public docs origin.
 
 ## Vercel
 
-Create two projects from this repository with root directories `apps/dashboard` and `apps/docs`. Assign `docs.dacoo.co` to the docs project and configure the environment variables from each app's example file.
+Create three projects from this repository with root directories `apps/dashboard`, `apps/docs`, and `apps/marketing`. Assign each domain to its corresponding project and configure the environment variables from each app's example file.
 
 ## Verification
 
