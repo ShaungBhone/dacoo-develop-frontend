@@ -17,7 +17,9 @@ export async function sendTelegramMessage(text: string): Promise<boolean> {
     })
 
     if (!response.ok) {
-      console.error("Failed to send Telegram message", response.status)
+      const responseBody = await response.text()
+
+      console.error("Failed to send Telegram message", response.status, responseBody)
       return false
     }
 
