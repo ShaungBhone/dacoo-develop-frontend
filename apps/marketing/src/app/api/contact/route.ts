@@ -1,4 +1,4 @@
-import { createSupabaseAdminClient } from "@/lib/supabase"
+import { sendTelegramMessage } from "@/lib/telegram"
 
 type ContactPayload = {
   name?: unknown
@@ -17,54 +17,6 @@ const TEAM_SIZES = new Set(["1-10", "11-50", "51-200", "201-500", "500+"])
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : ""
-}
-
-async function notifyTelegram(payload: {
-  name: string
-  company: string
-  email: string
-  phone: string
-  teamSize: string
-  industry: string
-  message: string
-  plan: string
-  referralCode: string
-}) {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN
-  const chatId = process.env.TELEGRAM_CHAT_ID
-
-  if (!botToken || !chatId) {
-    return
-  }
-
-  const message = payload.message.length > 3000 ? `${payload.message.slice(0, 3000)}…` : payload.message
-  const text = [
-    "New contact request",
-    `Name: ${payload.name}`,
-    `Company: ${payload.company || "—"}`,
-    `Email: ${payload.email}`,
-    `Phone: ${payload.phone}`,
-    `Team size: ${payload.teamSize}`,
-    `Industry: ${payload.industry || "—"}`,
-    `Plan: ${payload.plan || "—"}`,
-    `Referral code: ${payload.referralCode || "—"}`,
-    "",
-    message,
-  ].join("\n")
-
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text }),
-    })
-
-    if (!response.ok) {
-      console.error("Failed to send Telegram contact notification", response.status)
-    }
-  } catch (error) {
-    console.error("Failed to send Telegram contact notification", error)
-  }
 }
 
 export async function POST(request: Request) {
@@ -112,29 +64,23 @@ export async function POST(request: Request) {
     return Response.json({ error: "One or more fields are invalid." }, { status: 400 })
   }
 
-  try {
-    const supabase = createSupabaseAdminClient()
-    const { error } = await supabase.from("contact_submissions").insert({
-      name,
-      company,
-      email,
-      phone,
-      team_size: teamSize,
-      industry,
-      message,
-      plan: plan || null,
-      referral_code: referralCode || null,
-    })
+  const telegramMessage = [
+    "New contact request",
+    `Name: ${name}`,
+    `Company: ${company || "—"}`,
+    `Email: ${email}`,
+    `Phone: ${phone}`,
+    `Team size: ${teamSize}`,
+    `Industry: ${industry || "—"}`,
+    `Plan: ${plan || "—"}`,
+    `Referral code: ${referralCode || "—"}`,
+    "",
+    message.length > 3000 ? `${message.slice(0, 3000)}…` : message,
+  ].join("\n")
 
-    if (error) {
-      throw error
-    }
-  } catch (error) {
-    console.error("Failed to save contact submission", error)
+  if (!(await sendTelegramMessage(telegramMessage))) {
     return Response.json({ error: "We couldn't send your request. Please try again." }, { status: 500 })
   }
-
-  await notifyTelegram({ name, company, email, phone, teamSize, industry, message, plan, referralCode })
 
   return Response.json({ ok: true })
 }

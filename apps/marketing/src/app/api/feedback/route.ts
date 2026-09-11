@@ -1,4 +1,4 @@
-import { createSupabaseAdminClient } from "@/lib/supabase"
+import { sendTelegramMessage } from "@/lib/telegram"
 
 type FeedbackPayload = {
   category?: unknown
@@ -48,20 +48,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "Please enter a valid email address." }, { status: 400 })
   }
 
-  try {
-    const supabase = createSupabaseAdminClient()
-    const { error } = await supabase.from("feedback_submissions").insert({
-      category,
-      rating,
-      message,
-      email: email || null,
-    })
+  const telegramMessage = [
+    "New feedback submission",
+    `Category: ${category}`,
+    `Rating: ${rating ?? "—"}`,
+    `Email: ${email || "—"}`,
+    "",
+    message.length > 3000 ? `${message.slice(0, 3000)}…` : message,
+  ].join("\n")
 
-    if (error) {
-      throw error
-    }
-  } catch (error) {
-    console.error("Failed to save feedback submission", error)
+  if (!(await sendTelegramMessage(telegramMessage))) {
     return Response.json({ error: "We couldn't send your feedback. Please try again." }, { status: 500 })
   }
 
