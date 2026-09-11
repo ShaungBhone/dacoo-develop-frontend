@@ -7,7 +7,7 @@ import { useAuth } from "./auth-context"
 import { getCookie } from "@/lib/cookies"
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://maychat.test"
+  process.env.NEXT_PUBLIC_API_URL || "https://srv1713705.hstgr.cloud"
 
 interface EchoContextType {
   echo: Echo<"reverb"> | null

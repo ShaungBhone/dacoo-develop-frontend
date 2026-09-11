@@ -89,7 +89,8 @@ export async function updateInboxContact(
 /*                                Conversations                               */
 /* -------------------------------------------------------------------------- */
 
-export type ConversationStatus = "open" | "pending" | "resolved" | "closed" | "spam"
+export type ConversationStatus =
+  "open" | "pending" | "resolved" | "closed" | "spam"
 export type ConversationPriority = "low" | "normal" | "high" | "urgent"
 export type AiHandlerState = "human" | "ai-active" | "needs-attention"
 
@@ -165,7 +166,11 @@ type RawConversation = {
   unread_count: number
   ai_handler: string
   ai_state_history?: RawAiStateHistoryEntry[]
-  assignee: { id: number | string; name: string; avatar_url: string | null } | null
+  assignee: {
+    id: number | string
+    name: string
+    avatar_url: string | null
+  } | null
   customer: {
     id: number | string
     display_name: string
@@ -189,7 +194,11 @@ type RawConversation = {
 function mapTag(tag: unknown): ConversationTag {
   if (typeof tag === "string") return { id: tag, name: tag, color: null }
   if (tag && typeof tag === "object" && "name" in tag) {
-    const t = tag as { id?: number | string; name: unknown; color?: string | null }
+    const t = tag as {
+      id?: number | string
+      name: unknown
+      color?: string | null
+    }
     return {
       id: t.id ?? String(t.name),
       name: String(t.name),
@@ -227,7 +236,11 @@ function mapConversation(raw: RawConversation): Conversation {
     aiStateReason: currentStateEntry?.reason ?? null,
     aiStateHistory,
     assignee: raw.assignee
-      ? { id: raw.assignee.id, name: raw.assignee.name, avatarUrl: raw.assignee.avatar_url }
+      ? {
+          id: raw.assignee.id,
+          name: raw.assignee.name,
+          avatarUrl: raw.assignee.avatar_url,
+        }
       : null,
     customer: {
       id: raw.customer.id,
@@ -297,7 +310,9 @@ export async function syncConversationToRecord(
   organizationId: number | string,
   conversationId: number | string
 ): Promise<{ id: number | string; title: string }> {
-  const response = await apiFetch<{ record: { id: number | string; title: string } }>(
+  const response = await apiFetch<{
+    record: { id: number | string; title: string }
+  }>(
     `/api/v1/organizations/${organizationId}/conversations/${conversationId}/sync-record`,
     { method: "POST" }
   )
@@ -383,6 +398,7 @@ export type ConversationMessage = {
   status: string
   type: string
   attachments: MessageAttachment[]
+  metadata: Record<string, unknown>
   sentAt: string
 }
 
@@ -402,18 +418,27 @@ type RawMessageAttachment = {
 type RawMessage = {
   id: number | string
   direction: "inbound" | "outbound"
-  sender: { id: number | string; name: string; avatar_url: string | null } | null
+  sender: {
+    id: number | string
+    name: string
+    avatar_url: string | null
+  } | null
   body: string
   status: string
   type: string
   attachments?: RawMessageAttachment[]
+  metadata?: Record<string, unknown> | null
   sent_at: string
 }
 
 type RawConversationNote = {
   id: string
   body: string
-  author: { id: number | string; name: string; avatar_url: string | null } | null
+  author: {
+    id: number | string
+    name: string
+    avatar_url: string | null
+  } | null
   created_at: string | null
 }
 
@@ -432,12 +457,17 @@ function mapMessage(raw: RawMessage): ConversationMessage {
     id: raw.id,
     direction: raw.direction,
     sender: raw.sender
-      ? { id: raw.sender.id, name: raw.sender.name, avatarUrl: raw.sender.avatar_url }
+      ? {
+          id: raw.sender.id,
+          name: raw.sender.name,
+          avatarUrl: raw.sender.avatar_url,
+        }
       : null,
     body: raw.body,
     status: raw.status,
     type: raw.type,
     attachments: (raw.attachments ?? []).map(mapAttachment),
+    metadata: raw.metadata ?? {},
     sentAt: raw.sent_at,
   }
 }
@@ -459,6 +489,7 @@ function mapConversationNote(raw: RawConversationNote): ConversationMessage {
     status: "sent",
     type: "internal_note",
     attachments: [],
+    metadata: {},
     sentAt: raw.created_at ?? new Date(0).toISOString(),
   }
 }

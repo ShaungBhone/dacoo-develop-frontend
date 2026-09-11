@@ -23,7 +23,6 @@ import {
   fetchIntegrations,
   type IntegrationProvider,
   type IntegrationsMeta,
-  type IntegrationRecord,
 } from "@/components/settings/integrations-api"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert"
@@ -61,6 +60,7 @@ import { Whatsapp } from "@/components/ui/svgs/whatsapp"
 import { TypographyH3, TypographyMuted } from "@/components/ui/typography"
 import { TelegramConnectDialog } from "@/components/settings/telegram-connect-dialog"
 import { DisconnectChannelDialog } from "@/components/settings/disconnect-channel-dialog"
+import { ViberExperienceEditor } from "@/components/settings/viber-experience-editor"
 
 const PROVIDER_ICONS: Record<
   string,
@@ -81,14 +81,18 @@ function IntegrationCard({
   connecting,
   onConnect,
   onDisconnect,
+  onConfigure,
   onUpgrade,
+  canManage,
 }: {
   provider: IntegrationProvider
   meta: IntegrationsMeta | null
   connecting: boolean
   onConnect: () => void
   onDisconnect: () => void
+  onConfigure: () => void
   onUpgrade: () => void
+  canManage: boolean
 }) {
   const Icon = PROVIDER_ICONS[provider.provider] ?? MessageSquareIcon
   const isConnected = provider.connected
@@ -106,8 +110,7 @@ function IntegrationCard({
   }
 
   return (
-    <Card
-      size="sm">
+    <Card size="sm">
       <div>
         <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
           <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border bg-muted/40">
@@ -181,16 +184,25 @@ function IntegrationCard({
       <CardFooter className="justify-between">
         {isConnected ? (
           <>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={onDisconnect}
-            >
-              Disconnect
-            </Button>
+            <div className="flex gap-2">
+              {provider.provider === "viber" ? (
+                <Button type="button" size="sm" onClick={onConfigure}>
+                  Configure
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!canManage}
+                onClick={onDisconnect}
+              >
+                Disconnect
+              </Button>
+            </div>
             <Switch
               checked={true}
+              disabled={!canManage}
               onCheckedChange={onDisconnect}
               aria-label={`Disconnect ${provider.name}`}
             />
@@ -237,7 +249,7 @@ function IntegrationCard({
               type="button"
               size="sm"
               variant="default"
-              disabled={connecting}
+              disabled={connecting || !canManage}
               onClick={onConnect}
               className="gap-1"
             >
@@ -250,7 +262,7 @@ function IntegrationCard({
             </Button>
             <Switch
               checked={false}
-              disabled={connecting}
+              disabled={connecting || !canManage}
               onCheckedChange={onConnect}
               aria-label={`Connect ${provider.name}`}
             />
@@ -262,7 +274,7 @@ function IntegrationCard({
 }
 
 export function IntegrationsView() {
-  const { activeOrganizationId } = useOrganization()
+  const { activeOrganizationId, can } = useOrganization()
 
   if (!activeOrganizationId) {
     return (
@@ -284,11 +296,18 @@ export function IntegrationsView() {
     <IntegrationsGrid
       key={activeOrganizationId}
       organizationId={activeOrganizationId}
+      canManage={can("manage:integration")}
     />
   )
 }
 
-function IntegrationsGrid({ organizationId }: { organizationId: number }) {
+function IntegrationsGrid({
+  organizationId,
+  canManage,
+}: {
+  organizationId: number
+  canManage: boolean
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -322,7 +341,8 @@ function IntegrationsGrid({ organizationId }: { organizationId: number }) {
   }, [organizationId])
 
   React.useEffect(() => {
-    load()
+    const timer = window.setTimeout(() => void load(), 0)
+    return () => window.clearTimeout(timer)
   }, [load])
 
   // Handle OAuth callback status from query parameters
@@ -336,7 +356,7 @@ function IntegrationsGrid({ organizationId }: { organizationId: number }) {
         msg ?? `Successfully connected ${providerParam ?? "the channel"}.`
       )
       router.replace("/settings?tab=integrations")
-      load()
+      window.setTimeout(() => void load(), 0)
     } else if (status === "error") {
       toast.error(msg ?? "Could not authorize channel.")
       router.replace("/settings?tab=integrations")
@@ -357,7 +377,7 @@ function IntegrationsGrid({ organizationId }: { organizationId: number }) {
 
       if ("requires_oauth" in res && res.requires_oauth && res.connect_url) {
         // Redirect the user to Meta OAuth
-        window.location.href = res.connect_url
+        window.location.assign(res.connect_url)
         return
       }
 
@@ -377,6 +397,16 @@ function IntegrationsGrid({ organizationId }: { organizationId: number }) {
 
   function handleUpgrade() {
     router.push("/settings?tab=billing")
+  }
+
+  if (searchParams.get("configure") === "viber") {
+    return (
+      <ViberExperienceEditor
+        organizationId={organizationId}
+        canManage={canManage}
+        onBack={() => router.replace("/settings?tab=integrations")}
+      />
+    )
   }
 
   return (
@@ -413,7 +443,11 @@ function IntegrationsGrid({ organizationId }: { organizationId: number }) {
                 connecting={connectingProvider === provider.provider}
                 onConnect={() => handleConnect(provider)}
                 onDisconnect={() => setDisconnectTarget(provider)}
+                onConfigure={() =>
+                  router.push("/settings?tab=integrations&configure=viber")
+                }
                 onUpgrade={handleUpgrade}
+                canManage={canManage}
               />
             ))}
       </div>
@@ -422,7 +456,7 @@ function IntegrationsGrid({ organizationId }: { organizationId: number }) {
         <TelegramConnectDialog
           organizationId={organizationId}
           onClose={() => setTelegramDialogOpen(false)}
-          onConnected={(_record: IntegrationRecord) => {
+          onConnected={() => {
             setTelegramDialogOpen(false)
             toast.success("Telegram connected successfully!")
             load()

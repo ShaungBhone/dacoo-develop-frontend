@@ -1,6 +1,6 @@
 import { getCookie } from "./cookies"
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://maychat.test"
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://srv1713705.hstgr.cloud"
 const isDev = process.env.NODE_ENV !== "production"
 
 export class ApiError extends Error {

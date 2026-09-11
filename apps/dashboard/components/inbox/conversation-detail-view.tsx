@@ -288,6 +288,7 @@ export function ConversationDetailView({
         body: string
         status: string
         type: string
+        metadata?: Record<string, unknown> | null
         attachments?: {
           id: number
           filename: string
@@ -319,6 +320,7 @@ export function ConversationDetailView({
               status: event.status,
               type: event.type,
               attachments,
+              metadata: event.metadata ?? {},
               sentAt: event.sent_at,
             },
           ]

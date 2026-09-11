@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { safeDocsReturnPath } from "@/lib/safe-return-path"
 
-const apiUrl = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "https://maychat.test"
+const apiUrl = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "https://srv1713705.hstgr.cloud"
 
 export async function GET(request: NextRequest) {
   const cookieStore = await cookies()

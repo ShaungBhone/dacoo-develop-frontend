@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { CheckCheckIcon, FileTextIcon } from "@/components/ui/icons"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -92,11 +93,48 @@ function dayLabel(timestamp: string) {
   }).format(date)
 }
 
+function PreviewBadge({ expiresAt }: { expiresAt: unknown }) {
+  const expiry = typeof expiresAt === "string" ? expiresAt : null
+  const [seconds, setSeconds] = React.useState(() =>
+    expiry
+      ? Math.max(0, Math.ceil((new Date(expiry).getTime() - Date.now()) / 1000))
+      : 0
+  )
+
+  React.useEffect(() => {
+    if (!expiry) return
+    const update = () =>
+      setSeconds(
+        Math.max(0, Math.ceil((new Date(expiry).getTime() - Date.now()) / 1000))
+      )
+    update()
+    const timer = window.setInterval(update, 1_000)
+    return () => window.clearInterval(timer)
+  }, [expiry])
+
+  const countdown = expiry
+    ? ` · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
+    : ""
+
+  return (
+    <Badge
+      variant="outline"
+      className="ml-2 border-violet-300 text-violet-700 dark:border-violet-700 dark:text-violet-300"
+    >
+      Preview{countdown}
+    </Badge>
+  )
+}
+
 function isImageAttachment(mediaType: string | null): boolean {
   return !!mediaType && mediaType.startsWith("image/")
 }
 
-function MessageAttachments({ attachments }: { attachments: MessageAttachment[] }) {
+function MessageAttachments({
+  attachments,
+}: {
+  attachments: MessageAttachment[]
+}) {
   if (attachments.length === 0) return null
 
   const images = attachments.filter((a) => isImageAttachment(a.mediaType))
@@ -269,10 +307,22 @@ export function ConversationMessages({
                 ) : null}
                 <MessageContent>
                   {!isAgent ? (
-                    <MessageHeader>{contactName}</MessageHeader>
-                  ) : message.sender ? (
                     <MessageHeader>
-                      {message.sender.name}
+                      {contactName}
+                      {message.metadata.viber_preview ? (
+                        <PreviewBadge
+                          expiresAt={message.metadata.viber_preview_expires_at}
+                        />
+                      ) : null}
+                    </MessageHeader>
+                  ) : message.sender || message.metadata.viber_preview ? (
+                    <MessageHeader>
+                      {message.sender?.name ?? "Viber preview"}
+                      {message.metadata.viber_preview ? (
+                        <PreviewBadge
+                          expiresAt={message.metadata.viber_preview_expires_at}
+                        />
+                      ) : null}
                       {isInternalNote ? (
                         <Badge
                           variant="outline"
@@ -285,7 +335,13 @@ export function ConversationMessages({
                   ) : null}
                   <Bubble
                     align={align}
-                    variant={isInternalNote ? "outline" : isAgent ? "tinted" : "outline"}
+                    variant={
+                      isInternalNote
+                        ? "outline"
+                        : isAgent
+                          ? "tinted"
+                          : "outline"
+                    }
                     className={
                       isInternalNote
                         ? "[&>[data-slot=bubble-content]]:bg-amber-50 [&>[data-slot=bubble-content]]:border-amber-200 dark:[&>[data-slot=bubble-content]]:bg-amber-950/30 dark:[&>[data-slot=bubble-content]]:border-amber-700"
