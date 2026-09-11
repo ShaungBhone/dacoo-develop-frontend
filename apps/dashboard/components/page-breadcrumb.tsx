@@ -11,6 +11,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { SETTINGS_TABS } from "@/components/settings/settings-tabs"
+import { useTranslation } from "@/contexts/language-context"
 
 const LABELS: Record<string, string> = {
   "/home": "Home",
@@ -56,6 +57,7 @@ function getPageLabel(pathname: string) {
 export function PageBreadcrumb() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const { t } = useTranslation()
 
   // Settings: /settings/[tab] → Settings › <Tab label>
   if (pathname.startsWith("/settings")) {
@@ -133,7 +135,8 @@ export function PageBreadcrumb() {
     )
   }
 
-  const label = getPageLabel(pathname)
+  const label =
+    pathname === "/workflows" ? t("common.workflows") : getPageLabel(pathname)
 
   return (
     <Breadcrumb>

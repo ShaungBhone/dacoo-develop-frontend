@@ -22,7 +22,6 @@ import {
   CheckCircle2Icon,
   ClockIcon,
   Loader2Icon,
-  PlayIcon,
 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
