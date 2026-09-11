@@ -15,10 +15,26 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { BadgeDollarSignIcon, BotIcon, LifeBuoyIcon, SendIcon, SparklesIcon, TerminalSquareIcon, WaypointsIcon } from "lucide-react"
+import { MailIcon } from "lucide-react"
+
+// import {
+//   BadgeDollarSignIcon,
+//   BotIcon,
+//   LifeBuoyIcon,
+//   SendIcon,
+//   SparklesIcon,
+//   TerminalSquareIcon,
+//   WaypointsIcon,
+// } from "lucide-react"
 
 const data = {
   navMain: [
+    {
+      title: "Contact",
+      url: "/contact",
+      icon: <MailIcon />,
+    },
+    /*
     {
       title: "Features",
       url: "/features",
@@ -56,6 +72,7 @@ const data = {
       url: "/feedback",
       icon: <SendIcon />,
     },
+    */
   ],
 }
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

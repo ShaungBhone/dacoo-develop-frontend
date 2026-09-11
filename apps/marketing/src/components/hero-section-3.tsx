@@ -26,7 +26,7 @@ export default function HeroSection() {
 
                                 <div className="mt-6 flex flex-wrap gap-3">
                                     <Button className="pr-1.5" render={<Link href="/contact" />} nativeButton={false}><span className="text-nowrap">Talk to our team</span><ChevronRight className="opacity-50" /></Button>
-                                    <Button variant="outline" render={<Link href="/pricing" />} nativeButton={false}>View pricing</Button>
+                                    {/* <Button variant="outline" render={<Link href="/pricing" />} nativeButton={false}>View pricing</Button> */}
                                 </div>
                             </div>
                             <div className="relative h-80 w-[30rem] max-w-[calc(100vw-3rem)] overflow-hidden max-md:mx-auto max-md:scale-90 sm:h-96">
