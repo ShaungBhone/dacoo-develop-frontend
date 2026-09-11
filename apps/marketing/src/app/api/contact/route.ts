@@ -1,4 +1,4 @@
-import { neon } from "@neondatabase/serverless"
+import { createSupabaseAdminClient } from "@/lib/supabase"
 
 type ContactPayload = {
   name?: unknown
@@ -112,37 +112,23 @@ export async function POST(request: Request) {
     return Response.json({ error: "One or more fields are invalid." }, { status: 400 })
   }
 
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) {
-    console.error("DATABASE_URL is not configured")
-    return Response.json({ error: "Contact form is temporarily unavailable." }, { status: 500 })
-  }
-
   try {
-    const sql = neon(databaseUrl)
-    await sql`
-      INSERT INTO contact_submissions (
-        name,
-        company,
-        email,
-        phone,
-        team_size,
-        industry,
-        message,
-        plan,
-        referral_code
-      ) VALUES (
-        ${name},
-        ${company},
-        ${email},
-        ${phone},
-        ${teamSize},
-        ${industry},
-        ${message},
-        ${plan || null},
-        ${referralCode || null}
-      )
-    `
+    const supabase = createSupabaseAdminClient()
+    const { error } = await supabase.from("contact_submissions").insert({
+      name,
+      company,
+      email,
+      phone,
+      team_size: teamSize,
+      industry,
+      message,
+      plan: plan || null,
+      referral_code: referralCode || null,
+    })
+
+    if (error) {
+      throw error
+    }
   } catch (error) {
     console.error("Failed to save contact submission", error)
     return Response.json({ error: "We couldn't send your request. Please try again." }, { status: 500 })

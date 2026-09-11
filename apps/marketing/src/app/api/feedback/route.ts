@@ -1,4 +1,4 @@
-import { neon } from "@neondatabase/serverless"
+import { createSupabaseAdminClient } from "@/lib/supabase"
 
 type FeedbackPayload = {
   category?: unknown
@@ -48,18 +48,18 @@ export async function POST(request: Request) {
     return Response.json({ error: "Please enter a valid email address." }, { status: 400 })
   }
 
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) {
-    console.error("DATABASE_URL is not configured")
-    return Response.json({ error: "Feedback is temporarily unavailable." }, { status: 500 })
-  }
-
   try {
-    const sql = neon(databaseUrl)
-    await sql`
-      INSERT INTO feedback_submissions (category, rating, message, email)
-      VALUES (${category}, ${rating}, ${message}, ${email || null})
-    `
+    const supabase = createSupabaseAdminClient()
+    const { error } = await supabase.from("feedback_submissions").insert({
+      category,
+      rating,
+      message,
+      email: email || null,
+    })
+
+    if (error) {
+      throw error
+    }
   } catch (error) {
     console.error("Failed to save feedback submission", error)
     return Response.json({ error: "We couldn't send your feedback. Please try again." }, { status: 500 })
