@@ -84,10 +84,14 @@ import {
   DataGrid,
   DataGridContainer,
   dataGridFeatures,
+  type DataGridCellEditRequest,
+  type DataGridCellsChangeDetails,
   type DataGridFeatures,
 } from "@/components/reui/data-grid/data-grid"
+import { DataGridCellSelection } from "@/components/reui/data-grid/data-grid-cell-selection"
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area"
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table"
+import { RecordCellEditor } from "@/components/records/record-cell-editor"
 import { createFilter, type Filter } from "@/components/reui/filters"
 import { Filters } from "@/components/reui/filters/filters"
 import {
@@ -678,6 +682,14 @@ export function RecordsListView({
   >(undefined)
   const [deleteTargets, setDeleteTargets] = React.useState<RecordItem[]>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
+  const [pendingCells, setPendingCells] = React.useState<Set<string>>(
+    () => new Set()
+  )
+  const [invalidCells, setInvalidCells] = React.useState<Set<string>>(
+    () => new Set()
+  )
+  const [cellEditorRequest, setCellEditorRequest] =
+    React.useState<DataGridCellEditRequest<RecordItem> | null>(null)
   const [deleting, setDeleting] = React.useState(false)
 
   const [calculations, setCalculations] = React.useState<
@@ -829,6 +841,15 @@ export function RecordsListView({
     [attributes, columnInstances]
   )
 
+  const handleOpenRecord = React.useCallback(
+    (record: RecordItem) => {
+      router.push(
+        getRecordHref?.(record) ?? `/records/${objectSlug}/${record.id}`
+      )
+    },
+    [getRecordHref, objectSlug, router]
+  )
+
   const columns = React.useMemo(() => {
     const base = buildRecordColumns({
       attributes,
@@ -843,6 +864,7 @@ export function RecordsListView({
         await load()
       },
       onAddExistingAttribute: handleAddExistingAttribute,
+      onOpenRecord: handleOpenRecord,
     })
 
     return columnTransform ? columnTransform(base, attributes) : base
@@ -853,6 +875,7 @@ export function RecordsListView({
     currencySettings,
     load,
     handleAddExistingAttribute,
+    handleOpenRecord,
     openRename,
     organization?.id,
     recordObject?.id,
@@ -908,6 +931,222 @@ export function RecordsListView({
     onColumnVisibilityChange: setColumnVisibility,
     onColumnSizingChange: setColumnSizing,
   })
+
+  const persistRecordChanges = React.useCallback(
+    (
+      changesByRecord: Map<
+        string,
+        {
+          values: Record<string, unknown>
+          optimisticValues: Record<string, unknown>
+          previous: Record<string, unknown>
+          cellKeys: string[]
+        }
+      >
+    ) => {
+      if (!organization || changesByRecord.size === 0) return
+
+      const identitySlug = primaryIdentityAttribute?.slug
+      setRecords((current) =>
+        current.map((record) => {
+          const group = changesByRecord.get(record.id)
+          if (!group) return record
+          const identityValue = identitySlug
+            ? group.optimisticValues[identitySlug]
+            : undefined
+          return {
+            ...record,
+            values: { ...record.values, ...group.optimisticValues },
+            ...(identityValue !== undefined
+              ? {
+                  title: String(identityValue ?? ""),
+                  displayText: String(identityValue ?? ""),
+                }
+              : null),
+          }
+        })
+      )
+
+      const cellKeys = [...changesByRecord.values()].flatMap(
+        (group) => group.cellKeys
+      )
+      setPendingCells((current) => new Set([...current, ...cellKeys]))
+      setInvalidCells((current) => {
+        const next = new Set(current)
+        for (const cellKey of cellKeys) next.delete(cellKey)
+        return next
+      })
+
+      void Promise.all(
+        [...changesByRecord.entries()].map(async ([recordId, group]) => {
+          try {
+            const updated = await updateRecord(
+              organization.id,
+              recordId,
+              group.values
+            )
+            setRecords((current) =>
+              current.map((record) => {
+                if (record.id !== updated.id) return record
+                const values = { ...record.values }
+                for (const attributeSlug of Object.keys(group.values)) {
+                  values[attributeSlug] = updated.values[attributeSlug]
+                }
+                return {
+                  ...record,
+                  values,
+                  ...(identitySlug && identitySlug in group.values
+                    ? {
+                        title: updated.title,
+                        displayText: updated.displayText,
+                        displayImageUrl: updated.displayImageUrl,
+                      }
+                    : null),
+                  updatedAt: updated.updatedAt,
+                }
+              })
+            )
+            setPendingCells((current) => {
+              const next = new Set(current)
+              for (const cellKey of group.cellKeys) next.delete(cellKey)
+              return next
+            })
+          } catch (updateError) {
+            setRecords((current) =>
+              current.map((record) => {
+                if (record.id !== recordId) return record
+                const values = { ...record.values }
+                for (const [attributeSlug, attemptedValue] of Object.entries(
+                  group.optimisticValues
+                )) {
+                  if (
+                    JSON.stringify(values[attributeSlug]) ===
+                    JSON.stringify(attemptedValue)
+                  ) {
+                    values[attributeSlug] = group.previous[attributeSlug]
+                  }
+                }
+                const previousIdentity = identitySlug
+                  ? group.previous[identitySlug]
+                  : undefined
+                return {
+                  ...record,
+                  values,
+                  ...(previousIdentity !== undefined
+                    ? {
+                        title: String(previousIdentity ?? ""),
+                        displayText: String(previousIdentity ?? ""),
+                      }
+                    : null),
+                }
+              })
+            )
+            setPendingCells((current) => {
+              const next = new Set(current)
+              for (const cellKey of group.cellKeys) next.delete(cellKey)
+              return next
+            })
+            setInvalidCells(
+              (current) => new Set([...current, ...group.cellKeys])
+            )
+            toast.error(
+              updateError instanceof ApiError
+                ? updateError.message
+                : "Could not update the record."
+            )
+          }
+        })
+      )
+    },
+    [organization, primaryIdentityAttribute?.slug]
+  )
+
+  const handleCellsChange = React.useCallback(
+    (details: DataGridCellsChangeDetails<RecordItem>) => {
+      if (!organization) return
+
+      if (details.rejected.length > 0) {
+        setInvalidCells((current) => {
+          const next = new Set(current)
+          for (const rejected of details.rejected) {
+            next.add(`${rejected.rowId}:${rejected.columnId}`)
+          }
+          return next
+        })
+        toast.error(
+          details.rejected.length === 1
+            ? "That value cannot be written to this field."
+            : `${details.rejected.length} cells could not be updated.`
+        )
+      }
+
+      const changesByRecord = new Map<
+        string,
+        {
+          values: Record<string, unknown>
+          optimisticValues: Record<string, unknown>
+          previous: Record<string, unknown>
+          cellKeys: string[]
+        }
+      >()
+
+      for (const change of details.changes) {
+        const columnMeta = table.getColumn(change.columnId)?.columnDef.meta as
+          RecordColumnMeta | undefined
+        const attributeSlug = columnMeta?.attributeSlug
+        if (!attributeSlug) continue
+
+        const group = changesByRecord.get(change.rowId) ?? {
+          values: {},
+          optimisticValues: {},
+          previous: {},
+          cellKeys: [],
+        }
+        if (!(attributeSlug in group.previous)) {
+          group.previous[attributeSlug] = change.row.values[attributeSlug]
+        }
+        group.values[attributeSlug] = change.value
+        group.optimisticValues[attributeSlug] = change.value
+        group.cellKeys.push(`${change.rowId}:${change.columnId}`)
+        changesByRecord.set(change.rowId, group)
+      }
+
+      persistRecordChanges(changesByRecord)
+    },
+    [organization, persistRecordChanges, table]
+  )
+
+  const activeCellAttribute = React.useMemo(() => {
+    if (!cellEditorRequest) return null
+    const meta = table.getColumn(cellEditorRequest.columnId)?.columnDef.meta as
+      | RecordColumnMeta
+      | undefined
+    return attributes.find((attribute) => attribute.slug === meta?.attributeSlug) ?? null
+  }, [attributes, cellEditorRequest, table])
+
+  const commitActiveCell = React.useCallback(
+    async (apiValue: unknown, optimisticValue: unknown = apiValue) => {
+      if (!cellEditorRequest || !activeCellAttribute) return
+      const { rowId, columnId, previousValue } = cellEditorRequest
+      setCellEditorRequest(null)
+      persistRecordChanges(
+        new Map([
+          [
+            rowId,
+            {
+              values: { [activeCellAttribute.slug]: apiValue },
+              optimisticValues: {
+                [activeCellAttribute.slug]: optimisticValue,
+              },
+              previous: { [activeCellAttribute.slug]: previousValue },
+              cellKeys: [`${rowId}:${columnId}`],
+            },
+          ],
+        ])
+      )
+    },
+    [activeCellAttribute, cellEditorRequest, persistRecordChanges]
+  )
 
   const removeColumnInstanceState = React.useCallback(
     (instanceIds: string[]) => {
@@ -1048,7 +1287,7 @@ export function RecordsListView({
         activeViewId === ALL_RECORDS_VIEW_ID &&
         (builtIn?.label === "All records" || !builtIn)
           ? `All ${plural}`
-          : builtIn?.label ?? "All records",
+          : (builtIn?.label ?? "All records"),
       recordView: null,
       viewType: "table",
     }
@@ -1062,24 +1301,28 @@ export function RecordsListView({
   )
   const currentConfiguration = React.useMemo<RecordViewConfiguration>(
     () =>
-      normalizeViewConfiguration(viewType, {
-        search: "",
-        sorting,
-        filters: serializeRecordFilters(recordFilters),
-        columnOrder,
-        columnVisibility,
-        columnPinning: {
-          start: columnPinning.start ?? [],
-          end: columnPinning.end ?? [],
+      normalizeViewConfiguration(
+        viewType,
+        {
+          search: "",
+          sorting,
+          filters: serializeRecordFilters(recordFilters),
+          columnOrder,
+          columnVisibility,
+          columnPinning: {
+            start: columnPinning.start ?? [],
+            end: columnPinning.end ?? [],
+          },
+          columnSizing,
+          columnInstances: validColumnInstances,
+          calculations,
+          groupByAttributeId: boardStatusAttribute?.id ?? null,
+          cardFields,
+          collapsedLanes,
+          laneOrder,
         },
-        columnSizing,
-        columnInstances: validColumnInstances,
-        calculations,
-        groupByAttributeId: boardStatusAttribute?.id ?? null,
-        cardFields,
-        collapsedLanes,
-        laneOrder,
-      }, hasStandardNameIdentity),
+        hasStandardNameIdentity
+      ),
     [
       calculations,
       cardFields,
@@ -1156,12 +1399,7 @@ export function RecordsListView({
       setSkipAttemptCount(0)
       setViewError(null)
     },
-    [
-      attributes,
-      boardStatusAttribute,
-      builtInViews,
-      hasStandardNameIdentity,
-    ]
+    [attributes, boardStatusAttribute, builtInViews, hasStandardNameIdentity]
   )
 
   const organizationId = organization?.id
@@ -1381,12 +1619,16 @@ export function RecordsListView({
             ? currentConfiguration
             : saveDialog.sourceView?.viewType === saveViewType
               ? saveDialog.sourceView.configuration
-              : normalizeViewConfiguration(saveViewType, {
-                  search: "",
-                  sorting,
-                  filters: serializeRecordFilters(recordFilters),
-                  groupByAttributeId: boardStatusAttribute?.id ?? null,
-                }, hasStandardNameIdentity)
+              : normalizeViewConfiguration(
+                  saveViewType,
+                  {
+                    search: "",
+                    sorting,
+                    filters: serializeRecordFilters(recordFilters),
+                    groupByAttributeId: boardStatusAttribute?.id ?? null,
+                  },
+                  hasStandardNameIdentity
+                )
         const configuration = normalizeViewConfiguration(
           saveViewType,
           sourceConfiguration,
@@ -1681,7 +1923,7 @@ export function RecordsListView({
                       {isViewDirty ? " •" : ""}
                     </span>
                   </div>
-                  <ChevronDownIcon className="text-muted-foreground size-4 shrink-0" />
+                  <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
                 </CascaderTrigger>
 
                 <CascaderContent
@@ -2038,11 +2280,22 @@ export function RecordsListView({
                     No {plural.toLowerCase()} yet.
                   </span>
                 }
-                onRowClick={(record) => {
-                  router.push(
-                    getRecordHref?.(record) ??
-                      `/records/${objectSlug}/${record.id}`
+                onCellsChange={handleCellsChange}
+                onCellEditRequest={setCellEditorRequest}
+                onCellsCopy={({ cut, grid }) => {
+                  const count = grid.reduce(
+                    (total, row) => total + row.length,
+                    0
                   )
+                  toast.success(
+                    `${cut ? "Cut" : "Copied"} ${count} ${count === 1 ? "cell" : "cells"}`
+                  )
+                }}
+                getCellStatus={(record, columnId) => {
+                  const cellKey = `${record.id}:${columnId}`
+                  if (invalidCells.has(cellKey)) return "invalid"
+                  if (pendingCells.has(cellKey)) return "dirty"
+                  return undefined
                 }}
                 tableLayout={{
                   headerSticky: true,
@@ -2050,13 +2303,18 @@ export function RecordsListView({
                   columnsResizable: true,
                   columnsVisibility: true,
                   headerBackground: false,
-                  cellBorder: false,
+                  dense: true,
+                  cellBorder: true,
                   rowBorder: true,
                   width: "fixed",
+                  cellSelection: true,
+                  cellFillHandle: true,
+                  cellFillHandleVariant: "square",
+                  cellEditMode: "dblclick",
+                  cellEditEnterAdvance: true,
                 }}
                 tableClassNames={{
                   headerSticky: "sticky top-0 z-40 bg-background",
-                  bodyRow: "[&:last-child>td]:border-b",
                 }}
                 className="flex min-h-0 flex-1 flex-col gap-0"
               >
@@ -2068,7 +2326,25 @@ export function RecordsListView({
                     <DataGridTable />
                   </DataGridScrollArea>
                 </DataGridContainer>
+                <DataGridCellSelection />
               </DataGrid>
+              {cellEditorRequest &&
+              activeCellAttribute &&
+              organization &&
+              recordObject ? (
+                <RecordCellEditor
+                  request={cellEditorRequest}
+                  attribute={activeCellAttribute}
+                  organizationId={organization.id}
+                  object={recordObject}
+                  onCommit={commitActiveCell}
+                  onCancel={() => setCellEditorRequest(null)}
+                  onImageChanged={async () => {
+                    setCellEditorRequest(null)
+                    await load()
+                  }}
+                />
+              ) : null}
               {!isLoading && table.getRowModel().rows.length === 0 && (
                 <div className="pointer-events-none absolute inset-x-0 top-10 bottom-0 flex items-center justify-center text-sm text-muted-foreground">
                   No {plural.toLowerCase()} found.

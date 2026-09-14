@@ -28,7 +28,6 @@ import type {
   RecordColumnInstance,
   RecordItem,
 } from "@/components/records/api"
-import { formatLocationLabel } from "@/components/records/location-value"
 import {
   socialHandle,
   socialHref,
@@ -39,8 +38,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DataGridColumnHeader } from "@/components/reui/data-grid/data-grid-column-header"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { CurrencySettings } from "@/components/settings/currency-api"
-import { formatCurrencyAttribute } from "@/components/records/currency-attribute"
 import { AddColumnPopover } from "@/components/records/add-column-popover"
+import {
+  createRecordCellEdit,
+  formatRecordCellValue,
+} from "@/components/records/record-cell-editing"
 
 const headerClassName =
   "p-0 text-sm font-semibold tracking-wide text-muted-foreground whitespace-nowrap"
@@ -190,54 +192,6 @@ function initials(name: string): string {
     .join("")
 }
 
-/** Render a value according to its attribute's type. */
-function formatValue(
-  attribute: Attribute,
-  value: unknown,
-  currencySettings: CurrencySettings | null
-): string {
-  if (value == null || value === "") return ""
-
-  if (Array.isArray(value)) {
-    return value
-      .map((entry) => formatValue(attribute, entry, currencySettings))
-      .join(", ")
-  }
-
-  switch (attribute.type) {
-    case "checkbox":
-      return value === true ? "Yes" : "No"
-    case "currency":
-      return formatCurrencyAttribute(
-        value as string | number,
-        attribute,
-        currencySettings
-      )
-    case "select":
-    case "status": {
-      const option = attribute.selectOptions?.find(
-        (candidate) => candidate.slug === value || candidate.id === value
-      )
-      return option?.title ?? String(value)
-    }
-    case "date": {
-      const d = new Date(String(value))
-      return Number.isNaN(d.getTime())
-        ? String(value)
-        : d.getFullYear().toString()
-    }
-    case "timestamp":
-    case "interaction":
-      return new Date(String(value)).toLocaleString()
-    case "location":
-      return formatLocationLabel(value) ?? String(value)
-    case "image":
-      return ""
-    default:
-      return String(value)
-  }
-}
-
 interface ColumnOptions {
   attributes: Attribute[]
   objectSlug?: string | null
@@ -255,6 +209,7 @@ interface ColumnOptions {
   objectSingular?: string
   onAttributeCreated?: (newAttribute: Attribute) => Promise<void> | void
   onAddExistingAttribute?: (attribute: Attribute) => void
+  onOpenRecord?: (record: RecordItem) => void
 }
 
 /**
@@ -272,6 +227,7 @@ export function buildRecordColumns({
   objectSingular,
   onAttributeCreated,
   onAddExistingAttribute,
+  onOpenRecord,
 }: ColumnOptions): ColumnDef<DataGridFeatures, RecordItem>[] {
   const standardName = getStandardNameIdentityAttribute(attributes, objectSlug)
   const primaryAttributeSlug = standardName?.slug
@@ -349,11 +305,12 @@ export function buildRecordColumns({
             column={column}
             title={primaryHeaderTitle}
             showSortIcon={false}
-            onRename={
-              undefined
-            }
+            onRename={undefined}
             icon={
-              <PrimaryHeaderIcon className="size-3.5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+              <PrimaryHeaderIcon
+                className="size-3.5 shrink-0 text-muted-foreground/70"
+                aria-hidden="true"
+              />
             }
           />
         )
@@ -363,14 +320,30 @@ export function buildRecordColumns({
         return (
           <div className="flex min-w-0 items-center gap-2.5">
             <Avatar className="size-6 shrink-0">
-              {record.displayImageUrl ? <AvatarImage src={record.displayImageUrl} alt="" /> : null}
+              {record.displayImageUrl ? (
+                <AvatarImage src={record.displayImageUrl} alt="" />
+              ) : null}
               <AvatarFallback className="text-[10px] font-semibold uppercase">
                 {initials(record.displayText)}
               </AvatarFallback>
             </Avatar>
-            <span className="truncate text-sm font-medium text-foreground">
-              {record.displayText}
-            </span>
+            {onOpenRecord ? (
+              <button
+                type="button"
+                aria-label={`Open ${record.displayText}`}
+                className="min-w-0 truncate rounded-sm text-left text-sm font-medium text-foreground underline-offset-4 transition-colors hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:outline-none"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onOpenRecord(record)
+                }}
+              >
+                {record.displayText}
+              </button>
+            ) : (
+              <span className="truncate text-sm font-medium text-foreground">
+                {record.displayText}
+              </span>
+            )}
           </div>
         )
       },
@@ -386,6 +359,9 @@ export function buildRecordColumns({
         ),
         attributeSlug: standardName?.slug,
         sourceColumnId: "title",
+        cellEdit: standardName
+          ? createRecordCellEdit(standardName, currencySettings)
+          : undefined,
       },
     },
     ...rest.map<ColumnDef<DataGridFeatures, RecordItem>>((attribute) => {
@@ -398,12 +374,7 @@ export function buildRecordColumns({
       const socialPlatform = socialPlatformFor(attribute.slug)
       return {
         id: attribute.slug,
-        accessorFn: (record) =>
-          formatValue(
-            attribute,
-            record.values[attribute.slug],
-            currencySettings
-          ),
+        accessorFn: (record) => record.values[attribute.slug],
         enableSorting: true,
         size: ATTRIBUTE_COLUMN_WIDTH,
         minSize: 120,
@@ -426,7 +397,7 @@ export function buildRecordColumns({
           />
         ),
         cell: ({ row }) => {
-          const text = formatValue(
+          const text = formatRecordCellValue(
             attribute,
             row.original.values[attribute.slug],
             currencySettings
@@ -495,6 +466,7 @@ export function buildRecordColumns({
           skeleton: <Skeleton className="h-4 w-full max-w-[120px]" />,
           attributeSlug: attribute.slug,
           sourceColumnId: attribute.slug,
+          cellEdit: createRecordCellEdit(attribute, currencySettings),
         },
       }
     }),

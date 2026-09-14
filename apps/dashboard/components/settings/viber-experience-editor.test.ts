@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { localeComplete } from "./viber-experience-editor"
+import {
+  localeComplete,
+  selectLabel,
+  VIBER_CAROUSEL_IMAGE_REQUIREMENTS,
+} from "./viber-experience-editor"
 import type { ViberExperienceRevision } from "./viber-experience-api"
 
 function revision(): ViberExperienceRevision {
@@ -76,5 +80,28 @@ describe("Viber editor locale validation", () => {
     expect(localeComplete(draft, "en")).toBe(false)
     draft.automations[0]!.cards[0]!.image_url = "https://example.com/card.png"
     expect(localeComplete(draft, "en")).toBe(true)
+  })
+})
+
+describe("Viber editor select labels", () => {
+  it("shows the human-readable label instead of the stored API value", () => {
+    const options = [
+      { value: "open_url", label: "URL" },
+      { value: "share-phone", label: "Share phone" },
+    ]
+
+    expect(selectLabel(options, "open_url")).toBe("URL")
+    expect(selectLabel(options, "share-phone")).toBe("Share phone")
+  })
+})
+
+describe("Viber carousel image requirements", () => {
+  it("uses the documented upload limit and the editor crop dimensions", () => {
+    expect(VIBER_CAROUSEL_IMAGE_REQUIREMENTS).toMatchObject({
+      width: 800,
+      height: 450,
+      maxBytes: 512_000,
+      acceptedTypes: ["image/jpeg", "image/png"],
+    })
   })
 })

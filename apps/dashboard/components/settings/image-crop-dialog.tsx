@@ -11,30 +11,36 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Slider } from "@/components/ui/slider"
 import { Spinner } from "@/components/ui/spinner"
+import { cn } from "@/lib/utils"
 
-const OUTPUT_SIZE = 512
+const DEFAULT_OUTPUT_SIZE = 512
 
 type Position = {
   x: number
   y: number
 }
 
-function getImageBounds(image: HTMLImageElement, zoom: number) {
+export function getImageBounds(
+  image: Pick<HTMLImageElement, "naturalHeight" | "naturalWidth">,
+  zoom: number,
+  outputWidth = DEFAULT_OUTPUT_SIZE,
+  outputHeight = DEFAULT_OUTPUT_SIZE
+) {
   const scale =
     Math.max(
-      OUTPUT_SIZE / image.naturalWidth,
-      OUTPUT_SIZE / image.naturalHeight
+      outputWidth / image.naturalWidth,
+      outputHeight / image.naturalHeight
     ) * zoom
   const width = image.naturalWidth * scale
   const height = image.naturalHeight * scale
 
   return {
     height,
-    maxX: Math.max(0, (width - OUTPUT_SIZE) / 2),
-    maxY: Math.max(0, (height - OUTPUT_SIZE) / 2),
+    maxX: Math.max(0, (width - outputWidth) / 2),
+    maxY: Math.max(0, (height - outputHeight) / 2),
     width,
   }
 }
@@ -42,9 +48,11 @@ function getImageBounds(image: HTMLImageElement, zoom: number) {
 function clampPosition(
   image: HTMLImageElement,
   zoom: number,
-  position: Position
+  position: Position,
+  outputWidth: number,
+  outputHeight: number
 ): Position {
-  const { maxX, maxY } = getImageBounds(image, zoom)
+  const { maxX, maxY } = getImageBounds(image, zoom, outputWidth, outputHeight)
 
   return {
     x: Math.min(maxX, Math.max(-maxX, position.x)),
@@ -59,6 +67,11 @@ export function ImageCropDialog({
   mimeType,
   title = "Crop image",
   previewLabel = "Image crop preview",
+  description = "Drag to position. Slide to zoom.",
+  outputWidth = DEFAULT_OUTPUT_SIZE,
+  outputHeight = DEFAULT_OUTPUT_SIZE,
+  cropShape = "circle",
+  maxFileSizeBytes,
   onOpenChange,
   onCrop,
 }: {
@@ -68,6 +81,11 @@ export function ImageCropDialog({
   mimeType: string
   title?: string
   previewLabel?: string
+  description?: string
+  outputWidth?: number
+  outputHeight?: number
+  cropShape?: "circle" | "rectangle"
+  maxFileSizeBytes?: number
   onOpenChange: (open: boolean) => void
   onCrop: (file: File) => Promise<void> | void
 }) {
@@ -113,23 +131,35 @@ export function ImageCropDialog({
     const context = canvas.getContext("2d")
     if (!context) return
 
-    const { width, height } = getImageBounds(image, zoom)
-    context.clearRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE)
+    const { width, height } = getImageBounds(
+      image,
+      zoom,
+      outputWidth,
+      outputHeight
+    )
+    context.clearRect(0, 0, outputWidth, outputHeight)
+    if (mimeType === "image/jpeg") {
+      context.fillStyle = "#ffffff"
+      context.fillRect(0, 0, outputWidth, outputHeight)
+    }
     context.imageSmoothingEnabled = true
     context.imageSmoothingQuality = "high"
     context.drawImage(
       image,
-      (OUTPUT_SIZE - width) / 2 + position.x,
-      (OUTPUT_SIZE - height) / 2 + position.y,
+      (outputWidth - width) / 2 + position.x,
+      (outputHeight - height) / 2 + position.y,
       width,
       height
     )
-  }, [image, position, zoom])
+  }, [image, mimeType, outputHeight, outputWidth, position, zoom])
 
-  function handleZoomChange([nextZoom]: number[]) {
+  function handleZoomChange(value: number | readonly number[]) {
+    const nextZoom = typeof value === "number" ? value : (value[0] ?? 1)
     setZoom(nextZoom)
     if (image) {
-      setPosition((current) => clampPosition(image, nextZoom, current))
+      setPosition((current) =>
+        clampPosition(image, nextZoom, current, outputWidth, outputHeight)
+      )
     }
   }
 
@@ -149,15 +179,21 @@ export function ImageCropDialog({
     const canvasWidth = event.currentTarget.getBoundingClientRect().width
     if (canvasWidth === 0) return
 
-    const scale = OUTPUT_SIZE / canvasWidth
+    const scale = outputWidth / canvasWidth
     const deltaX = (event.clientX - drag.x) * scale
     const deltaY = (event.clientY - drag.y) * scale
     dragRef.current = { ...drag, x: event.clientX, y: event.clientY }
     setPosition((current) =>
-      clampPosition(image, zoom, {
-        x: current.x + deltaX,
-        y: current.y + deltaY,
-      })
+      clampPosition(
+        image,
+        zoom,
+        {
+          x: current.x + deltaX,
+          y: current.y + deltaY,
+        },
+        outputWidth,
+        outputHeight
+      )
     )
   }
 
@@ -178,11 +214,29 @@ export function ImageCropDialog({
     setCropError(null)
 
     try {
-      const blob = await new Promise<Blob | null>((resolve) => {
-        canvas.toBlob(resolve, mimeType, 0.92)
-      })
+      let quality = 0.92
+      let blob: Blob | null = null
+
+      do {
+        blob = await new Promise<Blob | null>((resolve) => {
+          canvas.toBlob(resolve, mimeType, quality)
+        })
+        quality -= 0.08
+      } while (
+        blob &&
+        maxFileSizeBytes &&
+        blob.size > maxFileSizeBytes &&
+        mimeType === "image/jpeg" &&
+        quality >= 0.44
+      )
+
       if (!blob) {
         throw new Error("Image cropping failed")
+      }
+      if (maxFileSizeBytes && blob.size > maxFileSizeBytes) {
+        throw new Error(
+          `The cropped image is larger than ${Math.round(maxFileSizeBytes / 1024)} KB.`
+        )
       }
 
       await onCrop(
@@ -191,8 +245,12 @@ export function ImageCropDialog({
           type: mimeType,
         })
       )
-    } catch {
-      setCropError("The image could not be cropped. Please try another image.")
+    } catch (error) {
+      setCropError(
+        error instanceof Error
+          ? error.message
+          : "The image could not be cropped. Please try another image."
+      )
     } finally {
       setCropping(false)
     }
@@ -208,16 +266,22 @@ export function ImageCropDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Drag to position. Slide to zoom.
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        <div className="mx-auto aspect-square w-full max-w-80 overflow-hidden rounded-full bg-white ring-1 ring-border dark:bg-white">
+        <div
+          className={cn(
+            "mx-auto w-full overflow-hidden bg-background ring-1 ring-border",
+            cropShape === "circle"
+              ? "max-w-80 rounded-full"
+              : "max-w-lg rounded-lg"
+          )}
+          style={{ aspectRatio: `${outputWidth} / ${outputHeight}` }}
+        >
           <canvas
             ref={canvasRef}
-            width={OUTPUT_SIZE}
-            height={OUTPUT_SIZE}
+            width={outputWidth}
+            height={outputHeight}
             role="img"
             aria-label={previewLabel}
             className="size-full cursor-grab touch-none active:cursor-grabbing"
@@ -247,11 +311,7 @@ export function ImageCropDialog({
           />
         </Field>
 
-        {cropError && (
-          <p className="text-sm text-destructive" role="alert">
-            {cropError}
-          </p>
-        )}
+        {cropError ? <FieldError>{cropError}</FieldError> : null}
 
         <DialogFooter>
           <Button

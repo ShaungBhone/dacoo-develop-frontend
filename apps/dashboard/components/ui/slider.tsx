@@ -8,11 +8,8 @@ function Slider({
   value,
   min = 0,
   max = 100,
-  onValueChange,
   ...props
-}: Omit<SliderPrimitive.Root.Props, "onValueChange"> & {
-  onValueChange?: (value: any, eventDetails?: any) => void
-}) {
+}: SliderPrimitive.Root.Props) {
   const _values = Array.isArray(value)
     ? value
     : Array.isArray(defaultValue)

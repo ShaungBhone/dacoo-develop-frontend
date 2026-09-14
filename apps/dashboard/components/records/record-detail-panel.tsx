@@ -28,9 +28,9 @@ import type {
   RecordItem,
   RecordObject,
 } from "@/components/records/api"
-import { deleteRecordAttributeImage, uploadRecordAttributeImage } from "@/components/records/api"
 import { ObjectGlyph } from "@/components/records/object-icon"
 import { RecordFieldRow } from "@/components/records/record-field-row"
+import { RecordImageEditor } from "@/components/records/record-image-editor"
 import { Button } from "@/components/ui/button"
 // Collections feature - commented out for now, to be re-enabled in future
 // import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -146,36 +146,26 @@ function RecordImageField({
   value: unknown
   onChanged: () => Promise<void>
 }) {
-  const inputRef = React.useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = React.useState(false)
-  const url = typeof value === "object" && value !== null && "url" in value && typeof value.url === "string" ? value.url : null
-  const upload = async (file: File | null) => {
-    if (!file || !object) return
-    setBusy(true)
-    try {
-      await uploadRecordAttributeImage(organizationId, record.id, object.id, attribute.id, file)
-      await onChanged()
-    } catch {
-      toast.error("Couldn’t upload image.")
-    } finally { setBusy(false) }
-  }
-  const remove = async () => {
-    if (!object) return
-    setBusy(true)
-    try {
-      await deleteRecordAttributeImage(organizationId, record.id, object.id, attribute.id)
-      await onChanged()
-    } catch { toast.error("Couldn’t remove image.") } finally { setBusy(false) }
-  }
-  return <div className="flex min-h-8 items-center gap-3 px-4 py-1">
-    <div className="flex w-36 shrink-0 items-center gap-2"><ImageIcon className="size-3.5 text-muted-foreground" /><span className="truncate text-xs font-medium text-muted-foreground">{attribute.title}</span></div>
-    <div className="flex min-w-0 flex-1 items-center gap-2">
-      {url ? <img src={url} alt="" className="size-8 rounded object-cover" /> : null}
-      <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => inputRef.current?.click()}>{url ? "Replace" : "Upload image"}</Button>
-      {url ? <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => void remove()}>Remove</Button> : null}
-      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => void upload(event.target.files?.[0] ?? null)} />
+  if (!object) return null
+
+  return (
+    <div className="flex min-h-8 items-center gap-3 px-4 py-1">
+      <div className="flex w-36 shrink-0 items-center gap-2">
+        <ImageIcon className="size-3.5 text-muted-foreground" />
+        <span className="truncate text-xs font-medium text-muted-foreground">
+          {attribute.title}
+        </span>
+      </div>
+      <RecordImageEditor
+        organizationId={organizationId}
+        record={record}
+        object={object}
+        attribute={attribute}
+        value={value}
+        onChanged={onChanged}
+      />
     </div>
-  </div>
+  )
 }
 
 /**

@@ -71,7 +71,9 @@ function mapInvitation(raw: RawInvitation): InvitationRow {
 /* -------------------------------------------------------------------------- */
 
 /** GET .../members — active organization members, each annotated with role. */
-export async function fetchMembers(organizationId: number): Promise<MemberRow[]> {
+export async function fetchMembers(
+  organizationId: number | string
+): Promise<MemberRow[]> {
   const res = await apiFetch<{ data: RawMember[] }>(
     `/api/v1/organizations/${organizationId}/members`
   )

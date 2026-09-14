@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import { toast } from "sonner"
 import {
   ArrowLeftIcon,
@@ -15,23 +16,58 @@ import {
 
 import { ApiError } from "@/lib/api"
 import { fetchConversations, type Conversation } from "@/components/inbox/api"
-import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert"
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/reui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Bubble, BubbleContent } from "@/components/ui/bubble"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+  FieldTitle,
+} from "@/components/ui/field"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Message, MessageContent } from "@/components/ui/message"
+import { SearchableDropdown } from "@/components/ui/searchable-dropdown"
+import { ImageCropDialog } from "@/components/settings/image-crop-dialog"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Viber } from "@/components/ui/svgs/viber"
 import {
   createViberDraft,
@@ -57,8 +93,44 @@ const LOCALES: { value: ViberLocale; label: string }[] = [
   { value: "my", label: "Burmese" },
 ]
 
-const selectClass =
-  "h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+const MENU_ACTIONS: { value: ViberMenuAction; label: string }[] = [
+  { value: "reply", label: "Automation" },
+  { value: "open_url", label: "URL" },
+  { value: "share-phone", label: "Share phone" },
+  { value: "handoff", label: "Handoff" },
+]
+
+const RESPONSE_TYPES: { value: ViberResponseType; label: string }[] = [
+  { value: "text", label: "Text" },
+  { value: "menu", label: "Main menu" },
+  { value: "carousel", label: "Carousel" },
+  { value: "handoff", label: "Human handoff" },
+]
+
+const CARD_ACTIONS: { value: ViberCardAction; label: string }[] = [
+  { value: "reply", label: "Automation" },
+  { value: "open_url", label: "URL" },
+  { value: "handoff", label: "Handoff" },
+]
+
+export const VIBER_CAROUSEL_IMAGE_REQUIREMENTS = {
+  width: 800,
+  height: 450,
+  maxBytes: 500 * 1024,
+  acceptedTypes: ["image/jpeg", "image/png"],
+} as const
+
+type PendingCarouselImage = {
+  cardId: string
+  url: string
+}
+
+export function selectLabel<Value extends string>(
+  options: ReadonlyArray<{ value: Value; label: string }>,
+  value: Value
+): string {
+  return options.find((option) => option.value === value)?.label ?? value
+}
 
 function messageFor(error: unknown, fallback: string): string {
   return error instanceof ApiError ? error.message : fallback
@@ -315,7 +387,7 @@ export function ViberExperienceEditor({
         <AlertDescription>{error}</AlertDescription>
       </Alert>
     ) : (
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <Skeleton className="h-10 w-72" />
         <Skeleton className="h-96 w-full" />
       </div>
@@ -323,6 +395,9 @@ export function ViberExperienceEditor({
   }
 
   const enabledLocales = draft.enabled_locales
+  const enabledLocaleOptions = LOCALES.filter((item) =>
+    enabledLocales.includes(item.value)
+  )
   const allComplete = enabledLocales.every((item) =>
     localeComplete(draft, item)
   )
@@ -338,7 +413,7 @@ export function ViberExperienceEditor({
             variant="outline"
             onClick={onBack}
           >
-            <ArrowLeftIcon />
+            <ArrowLeftIcon data-icon="inline-start" />
             <span className="sr-only">Back to integrations</span>
           </Button>
           <div className="flex size-11 items-center justify-center rounded-xl border bg-muted/40">
@@ -366,7 +441,7 @@ export function ViberExperienceEditor({
               onClick={() => void save()}
               disabled={busy !== null}
             >
-              {busy === "save" ? <Spinner /> : null}
+              {busy === "save" ? <Spinner data-icon="inline-start" /> : null}
               Save draft
             </Button>
             <Button
@@ -374,7 +449,7 @@ export function ViberExperienceEditor({
               onClick={() => void publish()}
               disabled={busy !== null || !allComplete}
             >
-              {busy === "publish" ? <Spinner /> : null}
+              {busy === "publish" ? <Spinner data-icon="inline-start" /> : null}
               Publish
             </Button>
           </div>
@@ -398,9 +473,9 @@ export function ViberExperienceEditor({
             (item) => (
               <TabsTrigger key={item.value} value={item.value}>
                 {localeComplete(draft, item.value) ? (
-                  <CheckCircle2Icon className="size-3.5 text-emerald-500" />
+                  <CheckCircle2Icon />
                 ) : (
-                  <TriangleAlertIcon className="size-3.5 text-amber-500" />
+                  <TriangleAlertIcon />
                 )}
                 {item.label}
               </TabsTrigger>
@@ -419,113 +494,144 @@ export function ViberExperienceEditor({
                       All enabled languages must be complete before publishing.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label>Enabled languages</Label>
-                      <div className="flex flex-wrap gap-4 rounded-lg border p-3">
-                        {LOCALES.map((option) => (
-                          <label
-                            key={option.value}
-                            className="flex items-center gap-2 text-sm"
-                          >
-                            <Switch
-                              checked={enabledLocales.includes(option.value)}
-                              disabled={
-                                !canManage ||
-                                (option.value === draft.default_locale &&
-                                  enabledLocales.length === 1)
-                              }
-                              onCheckedChange={(checked) => {
-                                setDraft((current) => {
-                                  if (!current) return current
-                                  const next = checked
-                                    ? [
-                                        ...new Set([
-                                          ...current.enabled_locales,
-                                          option.value,
-                                        ]),
-                                      ]
-                                    : current.enabled_locales.filter(
-                                        (value) => value !== option.value
-                                      )
-                                  const defaultLocale = next.includes(
-                                    current.default_locale
-                                  )
-                                    ? current.default_locale
-                                    : (next[0] ?? "en")
-                                  return {
-                                    ...current,
-                                    enabled_locales: next,
-                                    default_locale: defaultLocale,
-                                  }
-                                })
+                  <CardContent>
+                    <FieldGroup className="grid gap-4 sm:grid-cols-2">
+                      <FieldSet className="sm:col-span-2">
+                        <FieldLegend variant="label">
+                          Enabled languages
+                        </FieldLegend>
+                        <FieldDescription>
+                          Choose the languages customers can use, then select a
+                          default.
+                        </FieldDescription>
+                        <FieldGroup className="flex-row flex-wrap items-end gap-3">
+                          <Field className="flex-1">
+                            <FieldLabel htmlFor="viber-enabled-locales">
+                              Languages
+                            </FieldLabel>
+                            <ToggleGroup
+                              id="viber-enabled-locales"
+                              type="multiple"
+                              variant="outline"
+                              value={enabledLocales}
+                              disabled={!canManage}
+                              onValueChange={(value) => {
+                                const selected = Array.isArray(value)
+                                  ? (value as ViberLocale[])
+                                  : value
+                                    ? ([value] as ViberLocale[])
+                                    : []
+                                if (selected.length === 0) return
+                                if (!selected.includes(locale)) {
+                                  setLocale(selected[0]!)
+                                }
+                                setDraft((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        enabled_locales: selected,
+                                        default_locale: selected.includes(
+                                          current.default_locale
+                                        )
+                                          ? current.default_locale
+                                          : selected[0]!,
+                                      }
+                                    : current
+                                )
                               }}
-                            />
-                            {option.label}
-                          </label>
-                        ))}
-                        <label className="ml-auto flex items-center gap-2 text-sm">
-                          Default
-                          <select
-                            className={selectClass + " w-28"}
-                            value={draft.default_locale}
+                            >
+                              {LOCALES.map((option) => (
+                                <ToggleGroupItem
+                                  key={option.value}
+                                  value={option.value}
+                                >
+                                  {option.label}
+                                </ToggleGroupItem>
+                              ))}
+                            </ToggleGroup>
+                          </Field>
+                          <Field className="w-32 flex-none">
+                            <FieldLabel htmlFor="viber-default-locale">
+                              Default
+                            </FieldLabel>
+                            <Select
+                              items={enabledLocaleOptions}
+                              value={draft.default_locale}
+                              disabled={!canManage}
+                              onValueChange={(value) =>
+                                setDraft({
+                                  ...draft,
+                                  default_locale: value as ViberLocale,
+                                })
+                              }
+                            >
+                              <SelectTrigger
+                                id="viber-default-locale"
+                                className="w-full"
+                              >
+                                <SelectValue>
+                                  {selectLabel(
+                                    enabledLocaleOptions,
+                                    draft.default_locale
+                                  )}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectGroup>
+                                  {enabledLocaleOptions.map((option) => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          </Field>
+                        </FieldGroup>
+                      </FieldSet>
+                      {(
+                        [
+                          [
+                            "welcome_text",
+                            "Welcome message",
+                            "Sent when a customer opens the Viber bot.",
+                          ],
+                          [
+                            "menu_text",
+                            "Menu message",
+                            "Shown with the main menu.",
+                          ],
+                          [
+                            "fallback_text",
+                            "Fallback message",
+                            "Used when no trigger matches and AI is off.",
+                          ],
+                          [
+                            "handoff_text",
+                            "Handoff message",
+                            "Confirms that a person will take over.",
+                          ],
+                        ] as const
+                      ).map(([field, label, hint]) => (
+                        <Field key={field}>
+                          <FieldLabel htmlFor={`${field}-${item.value}`}>
+                            {label}
+                          </FieldLabel>
+                          <Textarea
+                            id={`${field}-${item.value}`}
+                            value={localized(draft[field], item.value)}
                             disabled={!canManage}
                             onChange={(event) =>
-                              setDraft({
-                                ...draft,
-                                default_locale: event.target
-                                  .value as ViberLocale,
-                              })
+                              updateLocalized(field, event.target.value)
                             }
-                          >
-                            {enabledLocales.map((value) => (
-                              <option key={value} value={value}>
-                                {value.toUpperCase()}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                    </div>
-                    {(
-                      [
-                        [
-                          "welcome_text",
-                          "Welcome message",
-                          "Sent when a customer opens the Viber bot.",
-                        ],
-                        [
-                          "menu_text",
-                          "Menu message",
-                          "Shown with the main menu.",
-                        ],
-                        [
-                          "fallback_text",
-                          "Fallback message",
-                          "Used when no trigger matches and AI is off.",
-                        ],
-                        [
-                          "handoff_text",
-                          "Handoff message",
-                          "Confirms that a person will take over.",
-                        ],
-                      ] as const
-                    ).map(([field, label, hint]) => (
-                      <div key={field} className="space-y-2">
-                        <Label htmlFor={`${field}-${item.value}`}>
-                          {label}
-                        </Label>
-                        <Textarea
-                          id={`${field}-${item.value}`}
-                          value={localized(draft[field], item.value)}
-                          disabled={!canManage}
-                          onChange={(event) =>
-                            updateLocalized(field, event.target.value)
-                          }
-                        />
-                        <p className="text-xs text-muted-foreground">{hint}</p>
-                      </div>
-                    ))}
+                          />
+                          <FieldDescription>{hint}</FieldDescription>
+                        </Field>
+                      ))}
+                    </FieldGroup>
                   </CardContent>
                 </Card>
 
@@ -560,57 +666,63 @@ export function ViberExperienceEditor({
                         30 minutes. Test handoff has no real side effects.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-3">
-                      <select
-                        className={selectClass}
-                        value={conversationId}
-                        disabled={previewExpiresAt !== null}
-                        onChange={(event) =>
-                          setConversationId(event.target.value)
-                        }
-                      >
-                        {conversations.length === 0 ? (
-                          <option value="">No Viber conversations yet</option>
-                        ) : null}
-                        {conversations.map((conversation) => (
-                          <option
-                            key={conversation.id}
-                            value={String(conversation.id)}
-                          >
-                            {conversation.customer.displayName}
-                          </option>
-                        ))}
-                      </select>
-                      {previewExpiresAt ? (
-                        <div className="flex items-center justify-between rounded-lg border border-violet-500/20 bg-violet-500/10 p-3 text-sm">
-                          <span className="flex items-center gap-2">
-                            <Clock3Icon className="size-4" />
-                            Preview active · {Math.ceil(
-                              remainingSeconds / 60
-                            )}{" "}
-                            min left
-                          </span>
+                    <CardContent>
+                      <FieldGroup>
+                        <Field>
+                          <FieldLabel htmlFor="viber-preview-conversation">
+                            Viber conversation
+                          </FieldLabel>
+                          <SearchableDropdown
+                            id="viber-preview-conversation"
+                            options={conversations.map((conversation) => ({
+                              id: String(conversation.id),
+                              value: String(conversation.id),
+                              label: conversation.customer.displayName,
+                            }))}
+                            placeholder="Select a conversation"
+                            searchPlaceholder="Search conversations..."
+                            emptyMessage="No Viber conversations yet."
+                            value={conversationId}
+                            disabled={previewExpiresAt !== null}
+                            onValueChange={setConversationId}
+                          />
+                        </Field>
+                        {previewExpiresAt ? (
+                          <Alert>
+                            <Clock3Icon />
+                            <AlertTitle>Preview active</AlertTitle>
+                            <AlertDescription>
+                              {Math.ceil(remainingSeconds / 60)} minutes left
+                              for this contact.
+                            </AlertDescription>
+                            <AlertAction>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => void stopPreview()}
+                                disabled={busy !== null}
+                              >
+                                Stop
+                              </Button>
+                            </AlertAction>
+                          </Alert>
+                        ) : (
                           <Button
                             type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => void stopPreview()}
-                            disabled={busy !== null}
+                            className="w-full"
+                            onClick={() => void startPreview()}
+                            disabled={!conversationId || busy !== null}
                           >
-                            Stop
+                            {busy === "preview" ? (
+                              <Spinner data-icon="inline-start" />
+                            ) : (
+                              <SendIcon data-icon="inline-start" />
+                            )}
+                            Send draft to contact
                           </Button>
-                        </div>
-                      ) : (
-                        <Button
-                          type="button"
-                          className="w-full"
-                          onClick={() => void startPreview()}
-                          disabled={!conversationId || busy !== null}
-                        >
-                          {busy === "preview" ? <Spinner /> : <SendIcon />}
-                          Send draft to contact
-                        </Button>
-                      )}
+                        )}
+                      </FieldGroup>
                     </CardContent>
                   </Card>
                 ) : null}
@@ -636,157 +748,190 @@ function MenuSection({
 }) {
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between">
-        <div>
-          <CardTitle>Main menu</CardTitle>
-          <CardDescription>
-            Automation, website, phone sharing, or human handoff actions.
-          </CardDescription>
-        </div>
+      <CardHeader>
+        <CardTitle>Main menu</CardTitle>
+        <CardDescription>
+          Automation, website, phone sharing, or human handoff actions.
+        </CardDescription>
         {canManage ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              setDraft((current) =>
-                current
-                  ? {
-                      ...current,
-                      menu_buttons: [
-                        ...current.menu_buttons,
-                        {
-                          label: { [locale]: "New button" },
-                          action_type: "reply",
-                          action_value: { [locale]: "new button" },
-                          background_color: "#7360F2",
-                        },
-                      ],
-                    }
-                  : current
-              )
-            }
-          >
-            <PlusIcon />
-            Add button
-          </Button>
-        ) : null}
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {draft.menu_buttons.map((button, index) => (
-          <div
-            key={button.id ?? index}
-            className="grid gap-2 rounded-xl border p-3 sm:grid-cols-[1fr_150px_1fr_auto]"
-          >
-            <Input
-              value={localized(button.label, locale)}
-              disabled={!canManage}
-              placeholder="Button label"
-              onChange={(event) =>
+          <CardAction>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
                 setDraft((current) =>
                   current
                     ? {
                         ...current,
-                        menu_buttons: current.menu_buttons.map(
-                          (item, itemIndex) =>
-                            itemIndex === index
-                              ? {
-                                  ...item,
-                                  label: {
-                                    ...item.label,
-                                    [locale]: event.target.value,
-                                  },
-                                }
-                              : item
-                        ),
-                      }
-                    : current
-                )
-              }
-            />
-            <select
-              className={selectClass}
-              value={button.action_type}
-              disabled={!canManage}
-              onChange={(event) =>
-                setDraft((current) =>
-                  current
-                    ? {
-                        ...current,
-                        menu_buttons: current.menu_buttons.map(
-                          (item, itemIndex) =>
-                            itemIndex === index
-                              ? {
-                                  ...item,
-                                  action_type: event.target
-                                    .value as ViberMenuAction,
-                                }
-                              : item
-                        ),
+                        menu_buttons: [
+                          ...current.menu_buttons,
+                          {
+                            label: { [locale]: "New button" },
+                            action_type: "reply",
+                            action_value: { [locale]: "new button" },
+                            background_color: "#7360F2",
+                          },
+                        ],
                       }
                     : current
                 )
               }
             >
-              <option value="reply">Automation</option>
-              <option value="open_url">URL</option>
-              <option value="share-phone">Share phone</option>
-              <option value="handoff">Handoff</option>
-            </select>
-            <Input
-              value={localized(button.action_value, locale)}
-              disabled={!canManage || button.action_type === "share-phone"}
-              placeholder={
-                button.action_type === "open_url"
-                  ? "https://…"
-                  : "Matching trigger"
-              }
-              onChange={(event) =>
-                setDraft((current) =>
-                  current
-                    ? {
-                        ...current,
-                        menu_buttons: current.menu_buttons.map(
-                          (item, itemIndex) =>
-                            itemIndex === index
-                              ? {
-                                  ...item,
-                                  action_value: {
-                                    ...item.action_value,
-                                    [locale]: event.target.value,
-                                  },
-                                }
-                              : item
-                        ),
-                      }
-                    : current
-                )
-              }
-            />
-            {canManage ? (
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                onClick={() =>
-                  setDraft((current) =>
-                    current
-                      ? {
-                          ...current,
-                          menu_buttons: current.menu_buttons.filter(
-                            (_, itemIndex) => itemIndex !== index
-                          ),
-                        }
-                      : current
-                  )
-                }
-              >
-                <Trash2Icon />
-                <span className="sr-only">Remove menu button</span>
-              </Button>
-            ) : null}
-          </div>
-        ))}
+              <PlusIcon data-icon="inline-start" />
+              Add button
+            </Button>
+          </CardAction>
+        ) : null}
+      </CardHeader>
+      <CardContent>
+        <FieldGroup>
+          {draft.menu_buttons.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <PlusIcon />
+                </EmptyMedia>
+                <EmptyTitle>No menu buttons</EmptyTitle>
+                <EmptyDescription>
+                  Add a button so customers can start common actions.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : null}
+          {draft.menu_buttons.map((button, index) => (
+            <FieldGroup
+              key={button.id ?? index}
+              className="grid gap-2 rounded-xl border p-3 sm:grid-cols-[1fr_150px_1fr_auto]"
+            >
+              <Field>
+                <FieldLabel className="sr-only">Button label</FieldLabel>
+                <Input
+                  value={localized(button.label, locale)}
+                  disabled={!canManage}
+                  placeholder="Button label"
+                  onChange={(event) =>
+                    setDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            menu_buttons: current.menu_buttons.map(
+                              (item, itemIndex) =>
+                                itemIndex === index
+                                  ? {
+                                      ...item,
+                                      label: {
+                                        ...item.label,
+                                        [locale]: event.target.value,
+                                      },
+                                    }
+                                  : item
+                            ),
+                          }
+                        : current
+                    )
+                  }
+                />
+              </Field>
+              <Field>
+                <FieldLabel className="sr-only">Action type</FieldLabel>
+                <Select
+                  items={MENU_ACTIONS}
+                  value={button.action_type}
+                  disabled={!canManage}
+                  onValueChange={(value) =>
+                    setDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            menu_buttons: current.menu_buttons.map(
+                              (item, itemIndex) =>
+                                itemIndex === index
+                                  ? {
+                                      ...item,
+                                      action_type: value as ViberMenuAction,
+                                    }
+                                  : item
+                            ),
+                          }
+                        : current
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {selectLabel(MENU_ACTIONS, button.action_type)}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {MENU_ACTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel className="sr-only">Action value</FieldLabel>
+                <Input
+                  value={localized(button.action_value, locale)}
+                  disabled={!canManage || button.action_type === "share-phone"}
+                  placeholder={
+                    button.action_type === "open_url"
+                      ? "https://…"
+                      : "Matching trigger"
+                  }
+                  onChange={(event) =>
+                    setDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            menu_buttons: current.menu_buttons.map(
+                              (item, itemIndex) =>
+                                itemIndex === index
+                                  ? {
+                                      ...item,
+                                      action_value: {
+                                        ...item.action_value,
+                                        [locale]: event.target.value,
+                                      },
+                                    }
+                                  : item
+                            ),
+                          }
+                        : current
+                    )
+                  }
+                />
+              </Field>
+              {canManage ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  onClick={() =>
+                    setDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            menu_buttons: current.menu_buttons.filter(
+                              (_, itemIndex) => itemIndex !== index
+                            ),
+                          }
+                        : current
+                    )
+                  }
+                >
+                  <Trash2Icon data-icon="inline-start" />
+                  <span className="sr-only">Remove menu button</span>
+                </Button>
+              ) : null}
+            </FieldGroup>
+          ))}
+        </FieldGroup>
       </CardContent>
     </Card>
   )
@@ -807,6 +952,19 @@ function AutomationSection({
   organizationId: number
   onExperience: (experience: ViberExperience) => void
 }) {
+  const pendingImageUrlRef = React.useRef<string | null>(null)
+  const [pendingImage, setPendingImage] =
+    React.useState<PendingCarouselImage | null>(null)
+
+  React.useEffect(
+    () => () => {
+      if (pendingImageUrlRef.current) {
+        URL.revokeObjectURL(pendingImageUrlRef.current)
+      }
+    },
+    []
+  )
+
   const update = (index: number, patch: Partial<ViberAutomation>) =>
     setDraft((current) =>
       current
@@ -819,11 +977,36 @@ function AutomationSection({
         : current
     )
 
-  async function upload(cardId: string | undefined, file: File) {
+  function closePendingImage(): void {
+    if (pendingImageUrlRef.current) {
+      URL.revokeObjectURL(pendingImageUrlRef.current)
+      pendingImageUrlRef.current = null
+    }
+    setPendingImage(null)
+  }
+
+  function chooseImage(cardId: string | undefined, file: File): void {
     if (!cardId) {
       toast.info("Save the draft once before uploading this card image.")
       return
     }
+
+    if (
+      !VIBER_CAROUSEL_IMAGE_REQUIREMENTS.acceptedTypes.some(
+        (type) => type === file.type
+      )
+    ) {
+      toast.error("Choose a JPEG or PNG image.")
+      return
+    }
+
+    closePendingImage()
+    const url = URL.createObjectURL(file)
+    pendingImageUrlRef.current = url
+    setPendingImage({ cardId, url })
+  }
+
+  async function upload(cardId: string, file: File): Promise<boolean> {
     try {
       const experience = await uploadViberCardImage(
         organizationId,
@@ -833,8 +1016,10 @@ function AutomationSection({
       onExperience(experience)
       setDraft(experience.draft)
       toast.success("Card image uploaded.")
+      return true
     } catch (error) {
       toast.error(messageFor(error, "Image upload failed."))
+      return false
     }
   }
 
@@ -851,352 +1036,500 @@ function AutomationSection({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-start justify-between">
-        <div>
+    <>
+      {pendingImage ? (
+        <ImageCropDialog
+          open
+          imageUrl={pendingImage.url}
+          fileName={`carousel-card-${pendingImage.cardId}.jpg`}
+          mimeType="image/jpeg"
+          title="Crop carousel image"
+          previewLabel="Viber carousel image crop preview"
+          description="Drag to position and use the slider to zoom. The uploaded image will be cropped to 800 × 450 px."
+          outputWidth={VIBER_CAROUSEL_IMAGE_REQUIREMENTS.width}
+          outputHeight={VIBER_CAROUSEL_IMAGE_REQUIREMENTS.height}
+          cropShape="rectangle"
+          maxFileSizeBytes={VIBER_CAROUSEL_IMAGE_REQUIREMENTS.maxBytes}
+          onOpenChange={(open) => {
+            if (!open) closePendingImage()
+          }}
+          onCrop={async (file) => {
+            if (await upload(pendingImage.cardId, file)) {
+              closePendingImage()
+            }
+          }}
+        />
+      ) : null}
+      <Card>
+        <CardHeader>
           <CardTitle>Trigger automations</CardTitle>
           <CardDescription>
             Triggers use exact matching after case and whitespace normalization.
           </CardDescription>
-        </div>
-        {canManage ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              setDraft((current) =>
-                current
-                  ? {
-                      ...current,
-                      automations: [
-                        ...current.automations,
-                        emptyAutomation(locale),
-                      ],
-                    }
-                  : current
-              )
-            }
-          >
-            <PlusIcon />
-            Add automation
-          </Button>
-        ) : null}
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {draft.automations.map((automation, index) => (
-          <div
-            key={automation.id ?? index}
-            className="space-y-3 rounded-xl border p-4"
-          >
-            <div className="grid gap-2 sm:grid-cols-[1fr_170px_auto_auto] sm:items-center">
-              <Input
-                value={automation.name}
-                disabled={!canManage}
-                onChange={(event) =>
-                  update(index, { name: event.target.value })
-                }
-              />
-              <select
-                className={selectClass}
-                value={automation.response_type}
-                disabled={!canManage}
-                onChange={(event) =>
-                  update(index, {
-                    response_type: event.target.value as ViberResponseType,
-                  })
+          {canManage ? (
+            <CardAction>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setDraft((current) =>
+                    current
+                      ? {
+                          ...current,
+                          automations: [
+                            ...current.automations,
+                            emptyAutomation(locale),
+                          ],
+                        }
+                      : current
+                  )
                 }
               >
-                <option value="text">Text</option>
-                <option value="menu">Main menu</option>
-                <option value="carousel">Carousel</option>
-                <option value="handoff">Human handoff</option>
-              </select>
-              <label className="flex items-center gap-2 text-xs">
-                <Switch
-                  checked={automation.is_enabled}
-                  disabled={!canManage}
-                  onCheckedChange={(checked) =>
-                    update(index, { is_enabled: checked })
-                  }
-                />
-                Enabled
-              </label>
-              {canManage ? (
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  onClick={() =>
-                    setDraft((current) =>
-                      current
-                        ? {
-                            ...current,
-                            automations: current.automations.filter(
-                              (_, itemIndex) => itemIndex !== index
-                            ),
-                          }
-                        : current
-                    )
-                  }
-                >
-                  <Trash2Icon />
-                  <span className="sr-only">Remove automation</span>
-                </Button>
-              ) : null}
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Triggers, one per line</Label>
-                <Textarea
-                  disabled={!canManage}
-                  value={(automation.triggers[locale] ?? []).join("\n")}
-                  onChange={(event) =>
-                    update(index, {
-                      triggers: {
-                        ...automation.triggers,
-                        [locale]: event.target.value
-                          .split("\n")
-                          .map((value) => value.trim())
-                          .filter(Boolean),
-                      },
-                    })
-                  }
-                />
-              </div>
-              {automation.response_type === "text" ||
-              automation.response_type === "carousel" ? (
-                <div className="space-y-2">
-                  <Label>Response text</Label>
-                  <Textarea
-                    disabled={!canManage}
-                    value={localized(automation.response_text, locale)}
-                    onChange={(event) =>
-                      update(index, {
-                        response_text: {
-                          ...automation.response_text,
-                          [locale]: event.target.value,
-                        },
-                      })
-                    }
-                  />
-                </div>
-              ) : null}
-            </div>
-            {automation.response_type === "text" ? (
-              <label className="flex items-center gap-2 text-sm">
-                <Switch
-                  checked={automation.show_menu}
-                  disabled={!canManage}
-                  onCheckedChange={(checked) =>
-                    update(index, { show_menu: checked })
-                  }
-                />
-                Show the main menu after this response
-              </label>
+                <PlusIcon data-icon="inline-start" />
+                Add automation
+              </Button>
+            </CardAction>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          <FieldGroup>
+            {draft.automations.length === 0 ? (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <PlusIcon />
+                  </EmptyMedia>
+                  <EmptyTitle>No automations</EmptyTitle>
+                  <EmptyDescription>
+                    Add an exact-match trigger and choose its response.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             ) : null}
-            {automation.response_type === "carousel" ? (
-              <div className="space-y-3 border-t pt-3">
-                <div className="flex items-center justify-between">
-                  <Label>Carousel cards</Label>
-                  {canManage ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
+            {draft.automations.map((automation, index) => (
+              <FieldGroup
+                key={automation.id ?? index}
+                className="gap-3 rounded-xl border p-4"
+              >
+                <div className="grid gap-2 sm:grid-cols-[1fr_170px_auto_auto] sm:items-center">
+                  <Field>
+                    <FieldLabel className="sr-only">Automation name</FieldLabel>
+                    <Input
+                      value={automation.name}
+                      disabled={!canManage}
+                      onChange={(event) =>
+                        update(index, { name: event.target.value })
+                      }
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel className="sr-only">Response type</FieldLabel>
+                    <Select
+                      items={RESPONSE_TYPES}
+                      value={automation.response_type}
+                      disabled={!canManage}
+                      onValueChange={(value) =>
                         update(index, {
-                          cards: [
-                            ...automation.cards,
-                            {
-                              title: { [locale]: "New card" },
-                              description: { [locale]: "" },
-                              cta_label: { [locale]: "Open" },
-                              action_type: "open_url",
-                              action_value: { [locale]: "https://" },
-                              image_url: null,
-                            },
-                          ],
+                          response_type: value as ViberResponseType,
                         })
                       }
                     >
-                      <PlusIcon />
-                      Add card
+                      <SelectTrigger className="w-full">
+                        <SelectValue>
+                          {selectLabel(
+                            RESPONSE_TYPES,
+                            automation.response_type
+                          )}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {RESPONSE_TYPES.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field orientation="horizontal">
+                    <Switch
+                      id={`automation-enabled-${index}`}
+                      checked={automation.is_enabled}
+                      disabled={!canManage}
+                      onCheckedChange={(checked) =>
+                        update(index, { is_enabled: checked })
+                      }
+                    />
+                    <FieldLabel htmlFor={`automation-enabled-${index}`}>
+                      Enabled
+                    </FieldLabel>
+                  </Field>
+                  {canManage ? (
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() =>
+                        setDraft((current) =>
+                          current
+                            ? {
+                                ...current,
+                                automations: current.automations.filter(
+                                  (_, itemIndex) => itemIndex !== index
+                                ),
+                              }
+                            : current
+                        )
+                      }
+                    >
+                      <Trash2Icon data-icon="inline-start" />
+                      <span className="sr-only">Remove automation</span>
                     </Button>
                   ) : null}
                 </div>
-                {automation.cards.map((card, cardIndex) => (
-                  <div
-                    key={card.id ?? cardIndex}
-                    className="grid gap-3 rounded-lg bg-muted/30 p-3 sm:grid-cols-[120px_1fr]"
-                  >
-                    <div className="flex h-28 items-center justify-center overflow-hidden rounded-lg border bg-background">
-                      {card.image_url ? (
-                        <img
-                          src={card.image_url}
-                          alt=""
-                          className="size-full object-cover"
-                        />
-                      ) : (
-                        <ImageIcon className="size-7 text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <Input
-                        value={localized(card.title, locale)}
-                        disabled={!canManage}
-                        placeholder="Title"
-                        onChange={(event) =>
-                          update(index, {
-                            cards: automation.cards.map((item, itemIndex) =>
-                              itemIndex === cardIndex
-                                ? {
-                                    ...item,
-                                    title: {
-                                      ...item.title,
-                                      [locale]: event.target.value,
-                                    },
-                                  }
-                                : item
-                            ),
-                          })
-                        }
-                      />
-                      <Input
-                        value={localized(card.cta_label, locale)}
-                        disabled={!canManage}
-                        placeholder="CTA label"
-                        onChange={(event) =>
-                          update(index, {
-                            cards: automation.cards.map((item, itemIndex) =>
-                              itemIndex === cardIndex
-                                ? {
-                                    ...item,
-                                    cta_label: {
-                                      ...item.cta_label,
-                                      [locale]: event.target.value,
-                                    },
-                                  }
-                                : item
-                            ),
-                          })
-                        }
-                      />
-                      <select
-                        className={selectClass}
-                        value={card.action_type}
-                        disabled={!canManage}
-                        onChange={(event) =>
-                          update(index, {
-                            cards: automation.cards.map((item, itemIndex) =>
-                              itemIndex === cardIndex
-                                ? {
-                                    ...item,
-                                    action_type: event.target
-                                      .value as ViberCardAction,
-                                  }
-                                : item
-                            ),
-                          })
-                        }
-                      >
-                        <option value="reply">Automation</option>
-                        <option value="open_url">URL</option>
-                        <option value="handoff">Handoff</option>
-                      </select>
-                      <Input
-                        value={localized(card.action_value, locale)}
-                        disabled={!canManage}
-                        placeholder="URL or trigger"
-                        onChange={(event) =>
-                          update(index, {
-                            cards: automation.cards.map((item, itemIndex) =>
-                              itemIndex === cardIndex
-                                ? {
-                                    ...item,
-                                    action_value: {
-                                      ...item.action_value,
-                                      [locale]: event.target.value,
-                                    },
-                                  }
-                                : item
-                            ),
-                          })
-                        }
-                      />
+                <FieldGroup className="grid gap-3 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel>Triggers, one per line</FieldLabel>
+                    <Textarea
+                      disabled={!canManage}
+                      value={(automation.triggers[locale] ?? []).join("\n")}
+                      onChange={(event) =>
+                        update(index, {
+                          triggers: {
+                            ...automation.triggers,
+                            [locale]: event.target.value
+                              .split("\n")
+                              .map((value) => value.trim())
+                              .filter(Boolean),
+                          },
+                        })
+                      }
+                    />
+                  </Field>
+                  {automation.response_type === "text" ||
+                  automation.response_type === "carousel" ? (
+                    <Field>
+                      <FieldLabel>Response text</FieldLabel>
                       <Textarea
-                        className="sm:col-span-2"
-                        value={localized(card.description, locale)}
                         disabled={!canManage}
-                        placeholder="Description"
+                        value={localized(automation.response_text, locale)}
                         onChange={(event) =>
                           update(index, {
-                            cards: automation.cards.map((item, itemIndex) =>
-                              itemIndex === cardIndex
-                                ? {
-                                    ...item,
-                                    description: {
-                                      ...item.description,
-                                      [locale]: event.target.value,
-                                    },
-                                  }
-                                : item
-                            ),
+                            response_text: {
+                              ...automation.response_text,
+                              [locale]: event.target.value,
+                            },
                           })
                         }
                       />
+                    </Field>
+                  ) : null}
+                </FieldGroup>
+                {automation.response_type === "text" ? (
+                  <Field orientation="horizontal">
+                    <Switch
+                      id={`automation-show-menu-${index}`}
+                      checked={automation.show_menu}
+                      disabled={!canManage}
+                      onCheckedChange={(checked) =>
+                        update(index, { show_menu: checked })
+                      }
+                    />
+                    <FieldLabel htmlFor={`automation-show-menu-${index}`}>
+                      Show the main menu after this response
+                    </FieldLabel>
+                  </Field>
+                ) : null}
+                {automation.response_type === "carousel" ? (
+                  <FieldGroup className="gap-3">
+                    <Separator />
+                    <div className="flex items-center justify-between">
+                      <FieldTitle>Carousel cards</FieldTitle>
                       {canManage ? (
-                        <div className="flex flex-wrap gap-2 sm:col-span-2">
-                          <label className="inline-flex h-8 cursor-pointer items-center rounded-lg border px-3 text-sm hover:bg-accent">
-                            <ImageIcon className="mr-2 size-4" />
-                            Upload JPEG/PNG
-                            <input
-                              type="file"
-                              accept="image/jpeg,image/png"
-                              className="sr-only"
-                              onChange={(event) => {
-                                const file = event.target.files?.[0]
-                                if (file) void upload(card.id, file)
-                              }}
-                            />
-                          </label>
-                          {card.image_url ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => void removeImage(card.id)}
-                            >
-                              Remove image
-                            </Button>
-                          ) : null}
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="ml-auto text-destructive"
-                            onClick={() =>
-                              update(index, {
-                                cards: automation.cards.filter(
-                                  (_, itemIndex) => itemIndex !== cardIndex
-                                ),
-                              })
-                            }
-                          >
-                            <Trash2Icon />
-                            Remove card
-                          </Button>
-                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            update(index, {
+                              cards: [
+                                ...automation.cards,
+                                {
+                                  title: { [locale]: "New card" },
+                                  description: { [locale]: "" },
+                                  cta_label: { [locale]: "Open" },
+                                  action_type: "open_url",
+                                  action_value: { [locale]: "https://" },
+                                  image_url: null,
+                                },
+                              ],
+                            })
+                          }
+                        >
+                          <PlusIcon data-icon="inline-start" />
+                          Add card
+                        </Button>
                       ) : null}
                     </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ))}
-      </CardContent>
-    </Card>
+                    {automation.cards.length === 0 ? (
+                      <Empty>
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <ImageIcon />
+                          </EmptyMedia>
+                          <EmptyTitle>No carousel cards</EmptyTitle>
+                          <EmptyDescription>
+                            Add a card, save the draft, then upload its image.
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
+                    ) : null}
+                    {automation.cards.map((card, cardIndex) => (
+                      <FieldGroup
+                        key={card.id ?? cardIndex}
+                        className="grid gap-3 rounded-lg bg-muted/30 p-3 sm:grid-cols-[120px_1fr]"
+                      >
+                        <div className="flex aspect-video items-center justify-center overflow-hidden rounded-lg border bg-background">
+                          {card.image_url ? (
+                            <Image
+                              src={card.image_url}
+                              alt={
+                                localized(card.title, locale) ||
+                                "Carousel card image"
+                              }
+                              width={120}
+                              height={68}
+                              unoptimized
+                              className="size-full object-cover"
+                            />
+                          ) : (
+                            <ImageIcon className="size-7 text-muted-foreground" />
+                          )}
+                        </div>
+                        <FieldGroup className="grid gap-2 sm:grid-cols-2">
+                          <Field>
+                            <FieldLabel className="sr-only">
+                              Card title
+                            </FieldLabel>
+                            <Input
+                              value={localized(card.title, locale)}
+                              disabled={!canManage}
+                              placeholder="Title"
+                              onChange={(event) =>
+                                update(index, {
+                                  cards: automation.cards.map(
+                                    (item, itemIndex) =>
+                                      itemIndex === cardIndex
+                                        ? {
+                                            ...item,
+                                            title: {
+                                              ...item.title,
+                                              [locale]: event.target.value,
+                                            },
+                                          }
+                                        : item
+                                  ),
+                                })
+                              }
+                            />
+                          </Field>
+                          <Field>
+                            <FieldLabel className="sr-only">
+                              CTA label
+                            </FieldLabel>
+                            <Input
+                              value={localized(card.cta_label, locale)}
+                              disabled={!canManage}
+                              placeholder="CTA label"
+                              onChange={(event) =>
+                                update(index, {
+                                  cards: automation.cards.map(
+                                    (item, itemIndex) =>
+                                      itemIndex === cardIndex
+                                        ? {
+                                            ...item,
+                                            cta_label: {
+                                              ...item.cta_label,
+                                              [locale]: event.target.value,
+                                            },
+                                          }
+                                        : item
+                                  ),
+                                })
+                              }
+                            />
+                          </Field>
+                          <Field>
+                            <FieldLabel className="sr-only">
+                              Card action type
+                            </FieldLabel>
+                            <Select
+                              items={CARD_ACTIONS}
+                              value={card.action_type}
+                              disabled={!canManage}
+                              onValueChange={(value) =>
+                                update(index, {
+                                  cards: automation.cards.map(
+                                    (item, itemIndex) =>
+                                      itemIndex === cardIndex
+                                        ? {
+                                            ...item,
+                                            action_type:
+                                              value as ViberCardAction,
+                                          }
+                                        : item
+                                  ),
+                                })
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue>
+                                  {selectLabel(CARD_ACTIONS, card.action_type)}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectGroup>
+                                  {CARD_ACTIONS.map((option) => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          </Field>
+                          <Field>
+                            <FieldLabel className="sr-only">
+                              Card action value
+                            </FieldLabel>
+                            <Input
+                              value={localized(card.action_value, locale)}
+                              disabled={!canManage}
+                              placeholder="URL or trigger"
+                              onChange={(event) =>
+                                update(index, {
+                                  cards: automation.cards.map(
+                                    (item, itemIndex) =>
+                                      itemIndex === cardIndex
+                                        ? {
+                                            ...item,
+                                            action_value: {
+                                              ...item.action_value,
+                                              [locale]: event.target.value,
+                                            },
+                                          }
+                                        : item
+                                  ),
+                                })
+                              }
+                            />
+                          </Field>
+                          <Field className="sm:col-span-2">
+                            <FieldLabel className="sr-only">
+                              Card description
+                            </FieldLabel>
+                            <Textarea
+                              value={localized(card.description, locale)}
+                              disabled={!canManage}
+                              placeholder="Description"
+                              onChange={(event) =>
+                                update(index, {
+                                  cards: automation.cards.map(
+                                    (item, itemIndex) =>
+                                      itemIndex === cardIndex
+                                        ? {
+                                            ...item,
+                                            description: {
+                                              ...item.description,
+                                              [locale]: event.target.value,
+                                            },
+                                          }
+                                        : item
+                                  ),
+                                })
+                              }
+                            />
+                          </Field>
+                          {canManage ? (
+                            <Field className="sm:col-span-2">
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  render={<label />}
+                                  nativeButton={false}
+                                >
+                                  <ImageIcon data-icon="inline-start" />
+                                  Choose &amp; crop image
+                                  <input
+                                    type="file"
+                                    accept={VIBER_CAROUSEL_IMAGE_REQUIREMENTS.acceptedTypes.join(
+                                      ","
+                                    )}
+                                    className="sr-only"
+                                    onChange={(event) => {
+                                      const file = event.target.files?.[0]
+                                      event.target.value = ""
+                                      if (file) chooseImage(card.id, file)
+                                    }}
+                                  />
+                                </Button>
+                                {card.image_url ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => void removeImage(card.id)}
+                                  >
+                                    Remove image
+                                  </Button>
+                                ) : null}
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="ml-auto text-destructive"
+                                  onClick={() =>
+                                    update(index, {
+                                      cards: automation.cards.filter(
+                                        (_, itemIndex) =>
+                                          itemIndex !== cardIndex
+                                      ),
+                                    })
+                                  }
+                                >
+                                  <Trash2Icon data-icon="inline-start" />
+                                  Remove card
+                                </Button>
+                              </div>
+                              <FieldDescription>
+                                Recommended: 800 × 450 px (16:9). JPEG or PNG,
+                                maximum 500 KB. You can reposition and crop
+                                after choosing a file.
+                                {!card.id
+                                  ? " Save the draft before uploading."
+                                  : ""}
+                              </FieldDescription>
+                            </Field>
+                          ) : null}
+                        </FieldGroup>
+                      </FieldGroup>
+                    ))}
+                  </FieldGroup>
+                ) : null}
+              </FieldGroup>
+            ))}
+          </FieldGroup>
+        </CardContent>
+      </Card>
+    </>
   )
 }
 
@@ -1210,64 +1543,84 @@ function ViberPreview({
   automation?: ViberAutomation
 }) {
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="border-b bg-[#7360F2] text-white">
+    <Card>
+      <CardHeader>
         <CardTitle>Live Viber preview</CardTitle>
-        <CardDescription className="text-white/75">
+        <CardDescription>
           Draft · {locale === "my" ? "Burmese" : "English"}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3 bg-[#efeaf7] p-4 dark:bg-[#211d2b]">
-        <div className="max-w-[88%] rounded-2xl rounded-bl-sm bg-white p-3 text-sm text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-100">
-          {localized(revision.welcome_text, locale) || "Welcome message"}
-        </div>
+      <CardContent className="flex flex-col gap-3 bg-muted/40 py-4">
+        <Message align="start">
+          <MessageContent>
+            <Bubble variant="outline" align="start">
+              <BubbleContent>
+                {localized(revision.welcome_text, locale) || "Welcome message"}
+              </BubbleContent>
+            </Bubble>
+          </MessageContent>
+        </Message>
         <div className="grid grid-cols-2 gap-2">
           {revision.menu_buttons.map((button, index) => (
-            <div
+            <Button
               key={button.id ?? index}
-              className="rounded-lg px-2 py-2 text-center text-xs font-semibold text-white"
-              style={{ backgroundColor: button.background_color }}
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled
             >
               {localized(button.label, locale) || "Button"}
-            </div>
+            </Button>
           ))}
         </div>
         {automation?.response_type === "text" ? (
-          <div className="max-w-[88%] rounded-2xl rounded-bl-sm bg-white p-3 text-sm text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-100">
-            {localized(automation.response_text, locale) ||
-              "Automation response"}
-          </div>
+          <Message align="start">
+            <MessageContent>
+              <Bubble variant="outline" align="start">
+                <BubbleContent>
+                  {localized(automation.response_text, locale) ||
+                    "Automation response"}
+                </BubbleContent>
+              </Bubble>
+            </MessageContent>
+          </Message>
         ) : null}
         {automation?.response_type === "carousel" ? (
           <div className="flex snap-x gap-2 overflow-x-auto pb-2">
             {automation.cards.map((card, index) => (
-              <div
+              <Card
                 key={card.id ?? index}
-                className="w-56 shrink-0 snap-start overflow-hidden rounded-xl bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-100"
+                size="sm"
+                className="w-56 shrink-0 snap-start"
               >
                 {card.image_url ? (
-                  <img
+                  <Image
                     src={card.image_url}
-                    alt=""
-                    className="h-28 w-full object-cover"
+                    alt={localized(card.title, locale) || "Carousel card image"}
+                    width={224}
+                    height={126}
+                    unoptimized
+                    className="aspect-video w-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-28 items-center justify-center bg-slate-100 dark:bg-slate-700">
+                  <div className="flex aspect-video items-center justify-center bg-muted">
                     <ImageIcon />
                   </div>
                 )}
-                <div className="space-y-1 p-3">
-                  <p className="font-semibold">
+                <CardHeader>
+                  <CardTitle>
                     {localized(card.title, locale) || "Card title"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
+                  </CardTitle>
+                  <CardDescription>
                     {localized(card.description, locale)}
-                  </p>
-                  <div className="mt-2 rounded-md bg-[#7360F2] p-2 text-center text-xs font-semibold text-white">
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button type="button" size="sm" className="w-full" disabled>
                     {localized(card.cta_label, locale) || "Open"}
-                  </div>
-                </div>
-              </div>
+                  </Button>
+                </CardContent>
+              </Card>
             ))}
           </div>
         ) : null}

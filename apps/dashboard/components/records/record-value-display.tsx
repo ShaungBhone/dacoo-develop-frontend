@@ -16,6 +16,7 @@ import { Badge } from "@/components/reui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useCurrencySettings } from "@/contexts/currency-settings-context"
 import { formatCurrencyAttribute } from "@/components/records/currency-attribute"
+import { recordReferenceLabel } from "@/components/records/record-reference"
 
 /** How many chips to show before collapsing the rest into a "+N" pill. */
 const CHIP_LIMIT = 3
@@ -113,8 +114,16 @@ export function RecordValueDisplay({
   switch (attribute.type) {
     case "image": {
       const image = entries[0]
-      const url = typeof image === "object" && image !== null && "url" in image && typeof image.url === "string" ? image.url : null
-      return url ? <img src={url} alt="" className="size-6 rounded object-cover" /> : null
+      const url =
+        typeof image === "object" &&
+        image !== null &&
+        "url" in image &&
+        typeof image.url === "string"
+          ? image.url
+          : null
+      return url ? (
+        <img src={url} alt="" className="size-6 rounded object-cover" />
+      ) : null
     }
     case "currency":
       return (
@@ -198,8 +207,8 @@ export function RecordValueDisplay({
         <span className={cn("flex flex-wrap items-center gap-1", className)}>
           {shown.map((entry, index) => (
             <ActorChip
-              key={`${String(entry)}-${index}`}
-              value={String(entry)}
+              key={`${recordReferenceLabel(entry)}-${index}`}
+              value={recordReferenceLabel(entry)}
             />
           ))}
           {overflow > 0 && (

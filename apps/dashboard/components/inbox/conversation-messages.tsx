@@ -117,10 +117,7 @@ function PreviewBadge({ expiresAt }: { expiresAt: unknown }) {
     : ""
 
   return (
-    <Badge
-      variant="outline"
-      className="ml-2 border-violet-300 text-violet-700 dark:border-violet-700 dark:text-violet-300"
-    >
+    <Badge variant="secondary" className="ml-2">
       Preview{countdown}
     </Badge>
   )

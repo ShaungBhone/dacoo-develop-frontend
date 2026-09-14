@@ -32,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { asRecordSummary } from "@/components/records/record-reference"
 
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
@@ -39,23 +40,6 @@ function errorMessage(error: unknown): string {
   }
 
   return "Couldn't update the team. Please try again."
-}
-
-function companyReference(value: unknown): RecordSummary | null {
-  const entry = Array.isArray(value) ? value[0] : value
-
-  if (
-    entry &&
-    typeof entry === "object" &&
-    "id" in entry &&
-    "title" in entry &&
-    typeof entry.id === "string" &&
-    typeof entry.title === "string"
-  ) {
-    return entry
-  }
-
-  return null
 }
 
 /**
@@ -166,7 +150,7 @@ export function CompanyTeamPanel({
 
   const handleAdd = React.useCallback(
     (person: RecordItem) => {
-      const currentCompany = companyReference(person.values.company)
+      const currentCompany = asRecordSummary(person.values.company)
       if (currentCompany && currentCompany.id !== company.id) {
         setPendingReassignment(person)
         return
@@ -252,9 +236,7 @@ export function CompanyTeamPanel({
               ) : candidates.length > 0 ? (
                 <div className="flex flex-col gap-1">
                   {candidates.map((person) => {
-                    const linkedCompany = companyReference(
-                      person.values.company
-                    )
+                    const linkedCompany = asRecordSummary(person.values.company)
                     const isSaving = savingId === person.id
 
                     return (
@@ -356,7 +338,7 @@ export function CompanyTeamPanel({
             <DialogTitle>Move person to {company.title}?</DialogTitle>
             <DialogDescription>
               {pendingReassignment
-                ? `${pendingReassignment.title} is currently linked to ${companyReference(pendingReassignment.values.company)?.title ?? "another company"}. Moving them will update their Company field.`
+                ? `${pendingReassignment.title} is currently linked to ${asRecordSummary(pendingReassignment.values.company)?.title ?? "another company"}. Moving them will update their Company field.`
                 : null}
             </DialogDescription>
           </DialogHeader>

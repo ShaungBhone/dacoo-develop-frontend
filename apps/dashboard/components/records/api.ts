@@ -636,6 +636,22 @@ export async function fetchRecords(
   return records
 }
 
+/** Search one object's records without guessing from an arbitrary label. */
+export async function searchRecords(
+  organizationId: number | string,
+  objectSlug: string,
+  query: string
+): Promise<RecordItem[]> {
+  const params = new URLSearchParams({ object: objectSlug, page: "1" })
+  if (query.trim()) params.set("search", query.trim())
+
+  const res = await apiFetch<RawRecordPage>(
+    `/api/v1/organizations/${organizationId}/records?${params.toString()}`
+  )
+
+  return res.data.map(mapRecord)
+}
+
 export async function createRecord(
   organizationId: number | string,
   objectSlug: string,
