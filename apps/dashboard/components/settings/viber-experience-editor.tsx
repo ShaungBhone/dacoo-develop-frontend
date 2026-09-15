@@ -6,16 +6,30 @@ import { toast } from "sonner"
 import {
   ArrowLeftIcon,
   CheckCircle2Icon,
+  ChevronDownIcon,
   Clock3Icon,
+  FileTextIcon,
   ImageIcon,
+  ListIcon,
+  MessageSquareIcon,
+  PanelLeftIcon,
+  PanelRightIcon,
   PlusIcon,
+  SaveIcon,
   SendIcon,
+  SettingsIcon,
+  SlidersHorizontalIcon,
   Trash2Icon,
   TriangleAlertIcon,
+  UploadIcon,
+  WorkflowIcon,
+  type LucideIcon,
 } from "@/components/ui/icons"
 
 import { ApiError } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { fetchConversations, type Conversation } from "@/components/inbox/api"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Alert,
   AlertAction,
@@ -24,22 +38,20 @@ import {
 } from "@/components/reui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
 import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Bubble, BubbleContent } from "@/components/ui/bubble"
+  Frame,
+  FrameDescription,
+  FrameFooter,
+  FrameHeader,
+  FramePanel,
+  FrameTitle,
+} from "@/components/reui/frame"
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldLegend,
-  FieldSet,
   FieldTitle,
 } from "@/components/ui/field"
 import {
@@ -50,9 +62,20 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
-import { Message, MessageContent } from "@/components/ui/message"
 import { SearchableDropdown } from "@/components/ui/searchable-dropdown"
 import { ImageCropDialog } from "@/components/settings/image-crop-dialog"
+import { ViberMobilePreview } from "@/components/settings/viber-mobile-preview"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -62,13 +85,24 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { Viber } from "@/components/ui/svgs/viber"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable"
 import {
   createViberDraft,
   fetchViberExperience,
@@ -92,6 +126,331 @@ const LOCALES: { value: ViberLocale; label: string }[] = [
   { value: "en", label: "English" },
   { value: "my", label: "Burmese" },
 ]
+
+export type ViberSection =
+  "overview" | "all" | "messages" | "menu" | "automations"
+
+export const VIBER_SECTION_LABELS: Record<ViberSection, string> = {
+  overview: "Overview",
+  all: "All Settings",
+  messages: "Messages",
+  menu: "Main Menu",
+  automations: "Automations",
+}
+
+export function enabledLocalesAfterChange(
+  enabledLocales: ViberLocale[],
+  localeToUpdate: ViberLocale,
+  isEnabled: boolean
+): ViberLocale[] {
+  return LOCALES.filter((option) =>
+    isEnabled
+      ? [...enabledLocales, localeToUpdate].includes(option.value)
+      : enabledLocales.includes(option.value) && option.value !== localeToUpdate
+  ).map((option) => option.value)
+}
+
+export type ViberRevisionSummary = {
+  isComplete: boolean
+  enabledLocaleLabels: string[]
+  defaultLocaleLabel: string
+  menuButtonCount: number
+  enabledAutomationCount: number
+}
+
+export function viberRevisionSummary(
+  revision: ViberExperienceRevision
+): ViberRevisionSummary {
+  const enabledLocales = revision.enabled_locales
+
+  return {
+    isComplete: enabledLocales.every((item) => localeComplete(revision, item)),
+    enabledLocaleLabels: LOCALES.filter((item) =>
+      enabledLocales.includes(item.value)
+    ).map((item) => item.label),
+    defaultLocaleLabel: selectLabel(LOCALES, revision.default_locale),
+    menuButtonCount: revision.menu_buttons.length,
+    enabledAutomationCount: revision.automations.filter(
+      (automation) => automation.is_enabled
+    ).length,
+  }
+}
+
+function ViberSettingsNav({
+  section,
+  onSectionChange,
+  revision,
+  className,
+}: {
+  section: ViberSection
+  onSectionChange: (section: ViberSection) => void
+  revision: ViberExperienceRevision
+  className?: string
+}) {
+  const items: Array<{
+    key: ViberSection
+    label: string
+    icon: LucideIcon
+    count?: number
+  }> = [
+    {
+      key: "overview",
+      label: VIBER_SECTION_LABELS.overview,
+      icon: FileTextIcon,
+    },
+    {
+      key: "all",
+      label: VIBER_SECTION_LABELS.all,
+      icon: SlidersHorizontalIcon,
+    },
+    {
+      key: "messages",
+      label: VIBER_SECTION_LABELS.messages,
+      icon: MessageSquareIcon,
+    },
+    {
+      key: "menu",
+      label: VIBER_SECTION_LABELS.menu,
+      icon: ListIcon,
+      count: revision.menu_buttons.length,
+    },
+    {
+      key: "automations",
+      label: VIBER_SECTION_LABELS.automations,
+      icon: WorkflowIcon,
+      count: revision.automations.filter((automation) => automation.is_enabled)
+        .length,
+    },
+  ]
+
+  return (
+    <nav
+      aria-label="Viber configuration sections"
+      className={cn("flex flex-col gap-0.5", className)}
+    >
+      {items.map((item) => {
+        const Icon = item.icon
+        const isActive = section === item.key
+
+        return (
+          <button
+            key={item.key}
+            type="button"
+            aria-current={isActive ? "page" : undefined}
+            onClick={() => onSectionChange(item.key)}
+            className={cn(
+              "flex h-9 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-sm transition-colors",
+              isActive
+                ? "bg-muted font-medium text-foreground"
+                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+            )}
+          >
+            <Icon
+              className="size-4 shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <span className="min-w-0 flex-1 truncate text-start">
+              {item.label}
+            </span>
+            {typeof item.count === "number" ? (
+              <span className="shrink-0 text-xs font-normal text-muted-foreground tabular-nums">
+                {item.count}
+              </span>
+            ) : null}
+          </button>
+        )
+      })}
+    </nav>
+  )
+}
+
+function ViberOverview({
+  experience,
+  revision,
+  summary,
+}: {
+  experience: ViberExperience
+  revision: ViberExperienceRevision
+  summary: ViberRevisionSummary
+}) {
+  const statusLabel = experience.published ? "Published" : "Draft only"
+
+  return (
+    <div className="mx-auto grid w-full max-w-7xl gap-6 @4xl/viber:grid-cols-[minmax(0,1fr)_24rem]">
+      <Frame>
+        <FrameHeader>
+          <FrameTitle>Publishing readiness</FrameTitle>
+          <FrameDescription>
+            A quick check of the content required for every enabled language.
+          </FrameDescription>
+        </FrameHeader>
+        <FramePanel className="flex min-h-64 items-center justify-center">
+          <div className="flex max-w-lg flex-col items-center gap-4 text-center">
+            <div
+              className={cn(
+                "flex size-14 items-center justify-center rounded-full",
+                summary.isComplete
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+              )}
+            >
+              {summary.isComplete ? (
+                <CheckCircle2Icon className="size-7" />
+              ) : (
+                <TriangleAlertIcon className="size-7" />
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <h2 className="text-xl font-semibold tracking-tight">
+                {summary.isComplete
+                  ? "Ready to publish"
+                  : "Configuration needs attention"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {summary.isComplete
+                  ? "All enabled languages have the messages and automation content required for publishing."
+                  : "Complete the messages, menu actions, and enabled automations for every enabled language."}
+              </p>
+            </div>
+          </div>
+        </FramePanel>
+        <FrameFooter className="flex-row items-center justify-between">
+          <span className="text-sm text-muted-foreground">Current draft</span>
+          <Badge variant={summary.isComplete ? "outline" : "secondary"}>
+            {summary.isComplete ? "Complete" : "Incomplete"}
+          </Badge>
+        </FrameFooter>
+      </Frame>
+
+      <Frame>
+        <FrameHeader>
+          <FrameTitle>Configuration summary</FrameTitle>
+          <FrameDescription>The active draft at a glance.</FrameDescription>
+        </FrameHeader>
+        <FramePanel fit className="p-0">
+          <Table>
+            <TableBody>
+              <TableRow>
+                <TableCell className="text-muted-foreground">Status</TableCell>
+                <TableCell className="text-right font-medium">
+                  {statusLabel}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="text-muted-foreground">
+                  Default language
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {summary.defaultLocaleLabel}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="text-muted-foreground">
+                  Enabled languages
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {summary.enabledLocaleLabels.join(", ")}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="text-muted-foreground">
+                  Menu buttons
+                </TableCell>
+                <TableCell className="text-right font-medium tabular-nums">
+                  {summary.menuButtonCount}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="text-muted-foreground">
+                  Enabled automations
+                </TableCell>
+                <TableCell className="text-right font-medium tabular-nums">
+                  {summary.enabledAutomationCount}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </FramePanel>
+        <FrameFooter>
+          <span className="text-xs text-muted-foreground">
+            Draft updated {revision.updated_at ? "recently" : "in this editor"}.
+          </span>
+        </FrameFooter>
+      </Frame>
+    </div>
+  )
+}
+
+function GeneralMessagesSection({
+  revision,
+  locale,
+  canManage,
+  onChange,
+}: {
+  revision: ViberExperienceRevision
+  locale: ViberLocale
+  canManage: boolean
+  onChange: (
+    field: "welcome_text" | "menu_text" | "fallback_text" | "handoff_text",
+    value: string
+  ) => void
+}) {
+  const fields = [
+    [
+      "welcome_text",
+      "Welcome message",
+      "Sent when a customer opens the Viber bot.",
+    ],
+    ["menu_text", "Menu message", "Shown with the main menu."],
+    [
+      "fallback_text",
+      "Fallback message",
+      "Used when no trigger matches and AI is off.",
+    ],
+    [
+      "handoff_text",
+      "Handoff message",
+      "Confirms that a person will take over.",
+    ],
+  ] as const
+
+  return (
+    <Frame>
+      <FrameHeader>
+        <FrameTitle>General messages</FrameTitle>
+        <FrameDescription>
+          Edit the core conversation copy for the selected language.
+        </FrameDescription>
+      </FrameHeader>
+      <FramePanel>
+        <FieldGroup className="grid gap-4 sm:grid-cols-2">
+          {fields.map(([field, label, hint]) => (
+            <Field key={field}>
+              <FieldLabel htmlFor={`${field}-${locale}`}>{label}</FieldLabel>
+              <Textarea
+                id={`${field}-${locale}`}
+                value={localized(revision[field], locale)}
+                disabled={!canManage}
+                onChange={(event) => onChange(field, event.target.value)}
+              />
+              <FieldDescription>{hint}</FieldDescription>
+            </Field>
+          ))}
+        </FieldGroup>
+      </FramePanel>
+      <FrameFooter className="flex-row items-center justify-between">
+        <span className="text-sm text-muted-foreground">
+          {selectLabel(LOCALES, locale)} content
+        </span>
+        <Badge
+          variant={localeComplete(revision, locale) ? "outline" : "secondary"}
+        >
+          {localeComplete(revision, locale) ? "Complete" : "Incomplete"}
+        </Badge>
+      </FrameFooter>
+    </Frame>
+  )
+}
 
 const MENU_ACTIONS: { value: ViberMenuAction; label: string }[] = [
   { value: "reply", label: "Automation" },
@@ -211,11 +570,15 @@ export function ViberExperienceEditor({
   canManage: boolean
   onBack: () => void
 }) {
+  const isMobile = useIsMobile()
   const [experience, setExperience] = React.useState<ViberExperience | null>(
     null
   )
   const [draft, setDraft] = React.useState<ViberExperienceRevision | null>(null)
   const [locale, setLocale] = React.useState<ViberLocale>("en")
+  const [section, setSection] = React.useState<ViberSection>("overview")
+  const [navigationOpen, setNavigationOpen] = React.useState(false)
+  const [previewOpen, setPreviewOpen] = React.useState(false)
   const [conversations, setConversations] = React.useState<Conversation[]>([])
   const [conversationId, setConversationId] = React.useState("")
   const [previewExpiresAt, setPreviewExpiresAt] = React.useState<string | null>(
@@ -398,339 +761,418 @@ export function ViberExperienceEditor({
   const enabledLocaleOptions = LOCALES.filter((item) =>
     enabledLocales.includes(item.value)
   )
-  const allComplete = enabledLocales.every((item) =>
-    localeComplete(draft, item)
-  )
+  const summary = viberRevisionSummary(draft)
+  const allComplete = summary.isComplete
   const currentAutomation = draft.automations[0]
 
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-3">
+  function setLocaleEnabled(
+    localeToUpdate: ViberLocale,
+    isEnabled: boolean
+  ): void {
+    const selectedLocales = enabledLocalesAfterChange(
+      enabledLocales,
+      localeToUpdate,
+      isEnabled
+    )
+
+    if (selectedLocales.length === 0) return
+
+    if (!selectedLocales.includes(locale)) {
+      setLocale(selectedLocales[0]!)
+    }
+
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            enabled_locales: selectedLocales,
+            default_locale: selectedLocales.includes(current.default_locale)
+              ? current.default_locale
+              : selectedLocales[0]!,
+          }
+        : current
+    )
+  }
+
+  const sectionContent =
+    section === "overview" ? (
+      <ViberOverview
+        experience={experience}
+        revision={draft}
+        summary={summary}
+      />
+    ) : section === "all" ? (
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+        <GeneralMessagesSection
+          revision={draft}
+          locale={locale}
+          canManage={canManage}
+          onChange={updateLocalized}
+        />
+        <MenuSection
+          draft={draft}
+          locale={locale}
+          canManage={canManage}
+          setDraft={setDraft}
+        />
+        <AutomationSection
+          draft={draft}
+          locale={locale}
+          canManage={canManage}
+          setDraft={setDraft}
+          onExperience={setExperience}
+          organizationId={organizationId}
+        />
+      </div>
+    ) : section === "messages" ? (
+      <div className="mx-auto w-full max-w-4xl">
+        <GeneralMessagesSection
+          revision={draft}
+          locale={locale}
+          canManage={canManage}
+          onChange={updateLocalized}
+        />
+      </div>
+    ) : section === "menu" ? (
+      <div className="mx-auto w-full max-w-4xl">
+        <MenuSection
+          draft={draft}
+          locale={locale}
+          canManage={canManage}
+          setDraft={setDraft}
+        />
+      </div>
+    ) : (
+      <div className="mx-auto w-full max-w-4xl">
+        <AutomationSection
+          draft={draft}
+          locale={locale}
+          canManage={canManage}
+          setDraft={setDraft}
+          onExperience={setExperience}
+          organizationId={organizationId}
+        />
+      </div>
+    )
+
+  const languageSettings = (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
           <Button
             type="button"
-            size="icon-sm"
-            variant="outline"
+            variant="ghost"
+            aria-label="Language settings"
+          />
+        }
+      >
+        <SettingsIcon />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-52">
+        <DropdownMenuLabel>Available to customers</DropdownMenuLabel>
+        {LOCALES.map((option) => {
+          const isEnabled = enabledLocales.includes(option.value)
+
+          return (
+            <DropdownMenuCheckboxItem
+              key={option.value}
+              checked={isEnabled}
+              disabled={isEnabled && enabledLocales.length === 1}
+              onSelect={(event) => event.preventDefault()}
+              onCheckedChange={(checked) =>
+                setLocaleEnabled(option.value, checked)
+              }
+            >
+              {option.label}
+            </DropdownMenuCheckboxItem>
+          )
+        })}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Default language</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={draft.default_locale}
+          onValueChange={(value) =>
+            setDraft({ ...draft, default_locale: value as ViberLocale })
+          }
+        >
+          {enabledLocaleOptions.map((option) => (
+            <DropdownMenuRadioItem key={option.value} value={option.value}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  const localeSelect = (
+    <Select
+      items={enabledLocaleOptions}
+      value={locale}
+      onValueChange={(value) => setLocale(value as ViberLocale)}
+    >
+      <SelectTrigger aria-label="Message language" className="w-28">
+        <SelectValue>{selectLabel(enabledLocaleOptions, locale)}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          {enabledLocaleOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {localeComplete(draft, option.value) ? (
+                <CheckCircle2Icon />
+              ) : (
+                <TriangleAlertIcon />
+              )}
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  )
+
+  const previewPanel = (
+    <div className="flex scrollbar-thin h-full min-h-0 flex-col gap-4 overflow-y-auto p-4">
+      {draft ? (
+        <ViberMobilePreview
+          key={`${locale}-${currentAutomation?.id ?? "overview"}`}
+          revision={draft}
+          locale={locale}
+          automation={currentAutomation}
+        />
+      ) : null}
+      {canManage ? (
+        <SendTestFrame
+          conversations={conversations}
+          conversationId={conversationId}
+          previewExpiresAt={previewExpiresAt}
+          remainingSeconds={remainingSeconds}
+          busy={busy}
+          onConversationChange={setConversationId}
+          onStart={() => void startPreview()}
+          onStop={() => void stopPreview()}
+        />
+      ) : null}
+    </div>
+  )
+
+  const mobileContent = (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-4 py-2 sm:hidden">
+        <Sheet open={navigationOpen} onOpenChange={setNavigationOpen}>
+          <SheetTrigger render={<Button variant="outline" size="sm" />}>
+            <PanelLeftIcon data-icon="inline-start" />
+            {VIBER_SECTION_LABELS[section]}
+          </SheetTrigger>
+          <SheetContent side="left">
+            <SheetHeader>
+              <SheetTitle>Viber configuration</SheetTitle>
+              <SheetDescription>
+                Choose a section to configure the Viber experience.
+              </SheetDescription>
+            </SheetHeader>
+            <ViberSettingsNav
+              section={section}
+              onSectionChange={(next) => {
+                setSection(next)
+                setNavigationOpen(false)
+              }}
+              revision={draft}
+              className="px-4 pb-6"
+            />
+          </SheetContent>
+        </Sheet>
+        <div className="flex items-center gap-1">
+          {localeSelect}
+          {canManage ? languageSettings : null}
+        </div>
+      </div>
+      <div className="@container/viber flex scrollbar-thin min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-4 lg:p-6">
+        {error ? (
+          <Alert variant="destructive" className="mb-6">
+            <TriangleAlertIcon />
+            <AlertTitle>Viber configuration needs attention</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {sectionContent}
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-2 lg:px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <Button
+            type="button"
+            variant="ghost"
             onClick={onBack}
+            className="shrink-0"
           >
-            <ArrowLeftIcon data-icon="inline-start" />
+            <ArrowLeftIcon />
             <span className="sr-only">Back to integrations</span>
           </Button>
-          <div className="flex size-11 items-center justify-center rounded-xl border bg-muted/40">
-            <Viber className="size-9" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-semibold">Viber experience</h2>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
+              <div className="flex min-w-0 items-center gap-1.5 text-sm">
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Integrations
+                </button>
+                <span className="text-muted-foreground/60">/</span>
+                <span className="truncate font-semibold">Viber</span>
+              </div>
               <Badge variant={experience.published ? "outline" : "secondary"}>
                 {experience.published ? "Published" : "Draft only"}
               </Badge>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="hidden truncate text-xs whitespace-nowrap text-muted-foreground sm:block">
               {canManage
-                ? "Build the greeting, menu, automations, cards, and handoff for this workspace."
-                : "Published configuration. You need Manage integrations permission to edit."}
+                ? "Configure messages, menu actions, automations, and testing."
+                : "Published configuration. Manage integrations permission is required to edit."}
             </p>
           </div>
         </div>
-        {canManage ? (
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void save()}
-              disabled={busy !== null}
-            >
-              {busy === "save" ? <Spinner data-icon="inline-start" /> : null}
-              Save draft
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void publish()}
-              disabled={busy !== null || !allComplete}
-            >
-              {busy === "publish" ? <Spinner data-icon="inline-start" /> : null}
-              Publish
-            </Button>
+
+        <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+          <div className="hidden items-center gap-1 sm:flex">
+            {localeSelect}
+            {canManage ? languageSettings : null}
           </div>
-        ) : null}
-      </div>
+          {canManage ? (
+            <ButtonGroup aria-label="Viber draft actions">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void save()}
+                disabled={busy !== null}
+              >
+                {busy === "save" ? <Spinner /> : <SaveIcon />}
+                <span className="hidden lg:inline">Save draft</span>
+                <span className="sr-only lg:hidden">Save draft</span>
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="More Viber draft actions"
+                      disabled={busy !== null}
+                    />
+                  }
+                >
+                  {busy === "publish" ? <Spinner /> : <ChevronDownIcon />}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-36">
+                  <DropdownMenuItem
+                    disabled={busy !== null || !allComplete}
+                    onClick={() => void publish()}
+                  >
+                    <UploadIcon />
+                    Publish
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </ButtonGroup>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label="Toggle Viber preview"
+            aria-pressed={previewOpen}
+            className="aria-pressed:bg-muted"
+            onClick={() => setPreviewOpen((open) => !open)}
+          >
+            <PanelRightIcon />
+          </Button>
+        </div>
+      </header>
 
-      {error ? (
-        <Alert variant="destructive">
-          <TriangleAlertIcon />
-          <AlertTitle>Viber configuration needs attention</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Tabs
-        value={locale}
-        onValueChange={(value) => setLocale(value as ViberLocale)}
-      >
-        <TabsList>
-          {LOCALES.filter((item) => enabledLocales.includes(item.value)).map(
-            (item) => (
-              <TabsTrigger key={item.value} value={item.value}>
-                {localeComplete(draft, item.value) ? (
-                  <CheckCircle2Icon />
-                ) : (
-                  <TriangleAlertIcon />
-                )}
-                {item.label}
-              </TabsTrigger>
-            )
-          )}
-        </TabsList>
-
-        {LOCALES.map((item) => (
-          <TabsContent key={item.value} value={item.value} className="mt-4">
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-              <div className="flex min-w-0 flex-col gap-5">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Languages & general messages</CardTitle>
-                    <CardDescription>
-                      All enabled languages must be complete before publishing.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <FieldGroup className="grid gap-4 sm:grid-cols-2">
-                      <FieldSet className="sm:col-span-2">
-                        <FieldLegend variant="label">
-                          Enabled languages
-                        </FieldLegend>
-                        <FieldDescription>
-                          Choose the languages customers can use, then select a
-                          default.
-                        </FieldDescription>
-                        <FieldGroup className="flex-row flex-wrap items-end gap-3">
-                          <Field className="flex-1">
-                            <FieldLabel htmlFor="viber-enabled-locales">
-                              Languages
-                            </FieldLabel>
-                            <ToggleGroup
-                              id="viber-enabled-locales"
-                              type="multiple"
-                              variant="outline"
-                              value={enabledLocales}
-                              disabled={!canManage}
-                              onValueChange={(value) => {
-                                const selected = Array.isArray(value)
-                                  ? (value as ViberLocale[])
-                                  : value
-                                    ? ([value] as ViberLocale[])
-                                    : []
-                                if (selected.length === 0) return
-                                if (!selected.includes(locale)) {
-                                  setLocale(selected[0]!)
-                                }
-                                setDraft((current) =>
-                                  current
-                                    ? {
-                                        ...current,
-                                        enabled_locales: selected,
-                                        default_locale: selected.includes(
-                                          current.default_locale
-                                        )
-                                          ? current.default_locale
-                                          : selected[0]!,
-                                      }
-                                    : current
-                                )
-                              }}
-                            >
-                              {LOCALES.map((option) => (
-                                <ToggleGroupItem
-                                  key={option.value}
-                                  value={option.value}
-                                >
-                                  {option.label}
-                                </ToggleGroupItem>
-                              ))}
-                            </ToggleGroup>
-                          </Field>
-                          <Field className="w-32 flex-none">
-                            <FieldLabel htmlFor="viber-default-locale">
-                              Default
-                            </FieldLabel>
-                            <Select
-                              items={enabledLocaleOptions}
-                              value={draft.default_locale}
-                              disabled={!canManage}
-                              onValueChange={(value) =>
-                                setDraft({
-                                  ...draft,
-                                  default_locale: value as ViberLocale,
-                                })
-                              }
-                            >
-                              <SelectTrigger
-                                id="viber-default-locale"
-                                className="w-full"
-                              >
-                                <SelectValue>
-                                  {selectLabel(
-                                    enabledLocaleOptions,
-                                    draft.default_locale
-                                  )}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectGroup>
-                                  {enabledLocaleOptions.map((option) => (
-                                    <SelectItem
-                                      key={option.value}
-                                      value={option.value}
-                                    >
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              </SelectContent>
-                            </Select>
-                          </Field>
-                        </FieldGroup>
-                      </FieldSet>
-                      {(
-                        [
-                          [
-                            "welcome_text",
-                            "Welcome message",
-                            "Sent when a customer opens the Viber bot.",
-                          ],
-                          [
-                            "menu_text",
-                            "Menu message",
-                            "Shown with the main menu.",
-                          ],
-                          [
-                            "fallback_text",
-                            "Fallback message",
-                            "Used when no trigger matches and AI is off.",
-                          ],
-                          [
-                            "handoff_text",
-                            "Handoff message",
-                            "Confirms that a person will take over.",
-                          ],
-                        ] as const
-                      ).map(([field, label, hint]) => (
-                        <Field key={field}>
-                          <FieldLabel htmlFor={`${field}-${item.value}`}>
-                            {label}
-                          </FieldLabel>
-                          <Textarea
-                            id={`${field}-${item.value}`}
-                            value={localized(draft[field], item.value)}
-                            disabled={!canManage}
-                            onChange={(event) =>
-                              updateLocalized(field, event.target.value)
-                            }
-                          />
-                          <FieldDescription>{hint}</FieldDescription>
-                        </Field>
-                      ))}
-                    </FieldGroup>
-                  </CardContent>
-                </Card>
-
-                <MenuSection
-                  draft={draft}
-                  locale={item.value}
-                  canManage={canManage}
-                  setDraft={setDraft}
-                />
-                <AutomationSection
-                  draft={draft}
-                  locale={item.value}
-                  canManage={canManage}
-                  setDraft={setDraft}
-                  onExperience={setExperience}
-                  organizationId={organizationId}
-                />
-              </div>
-
-              <div className="flex flex-col gap-5 xl:sticky xl:top-4 xl:self-start">
-                <ViberPreview
+      {isMobile ? (
+        <>
+          {mobileContent}
+          <Sheet open={previewOpen} onOpenChange={setPreviewOpen}>
+            <SheetContent
+              side="right"
+              className="w-full sm:max-w-md"
+              onPointerDownOutside={(event) => {
+                const target = event.target as HTMLElement | null
+                const isOverlay =
+                  target?.getAttribute?.("data-slot") === "sheet-overlay" ||
+                  target?.classList?.contains("bg-black/30")
+                if (!isOverlay) event.preventDefault()
+              }}
+              onInteractOutside={(event) => {
+                const target = event.target as HTMLElement | null
+                const isOverlay =
+                  target?.getAttribute?.("data-slot") === "sheet-overlay" ||
+                  target?.classList?.contains("bg-black/30")
+                if (!isOverlay) event.preventDefault()
+              }}
+            >
+              <SheetHeader>
+                <SheetTitle>Preview and test</SheetTitle>
+                <SheetDescription>
+                  Review this draft and send it to an existing Viber contact.
+                </SheetDescription>
+              </SheetHeader>
+              {previewPanel}
+            </SheetContent>
+          </Sheet>
+        </>
+      ) : (
+        <ResizablePanelGroup
+          key={previewOpen ? "preview-open" : "preview-closed"}
+          className="min-h-0 flex-1 overflow-hidden"
+        >
+          <ResizablePanel
+            id="viber-settings-nav-panel"
+            defaultSize="18%"
+            minSize="14%"
+            maxSize="26%"
+            className="min-w-0"
+          >
+            <aside className="flex h-full flex-col bg-sidebar">
+              <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3">
+                <ViberSettingsNav
+                  section={section}
+                  onSectionChange={setSection}
                   revision={draft}
-                  locale={item.value}
-                  automation={currentAutomation}
                 />
-                {canManage ? (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Send test</CardTitle>
-                      <CardDescription>
-                        Activates this draft for one existing Viber contact for
-                        30 minutes. Test handoff has no real side effects.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <FieldGroup>
-                        <Field>
-                          <FieldLabel htmlFor="viber-preview-conversation">
-                            Viber conversation
-                          </FieldLabel>
-                          <SearchableDropdown
-                            id="viber-preview-conversation"
-                            options={conversations.map((conversation) => ({
-                              id: String(conversation.id),
-                              value: String(conversation.id),
-                              label: conversation.customer.displayName,
-                            }))}
-                            placeholder="Select a conversation"
-                            searchPlaceholder="Search conversations..."
-                            emptyMessage="No Viber conversations yet."
-                            value={conversationId}
-                            disabled={previewExpiresAt !== null}
-                            onValueChange={setConversationId}
-                          />
-                        </Field>
-                        {previewExpiresAt ? (
-                          <Alert>
-                            <Clock3Icon />
-                            <AlertTitle>Preview active</AlertTitle>
-                            <AlertDescription>
-                              {Math.ceil(remainingSeconds / 60)} minutes left
-                              for this contact.
-                            </AlertDescription>
-                            <AlertAction>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => void stopPreview()}
-                                disabled={busy !== null}
-                              >
-                                Stop
-                              </Button>
-                            </AlertAction>
-                          </Alert>
-                        ) : (
-                          <Button
-                            type="button"
-                            className="w-full"
-                            onClick={() => void startPreview()}
-                            disabled={!conversationId || busy !== null}
-                          >
-                            {busy === "preview" ? (
-                              <Spinner data-icon="inline-start" />
-                            ) : (
-                              <SendIcon data-icon="inline-start" />
-                            )}
-                            Send draft to contact
-                          </Button>
-                        )}
-                      </FieldGroup>
-                    </CardContent>
-                  </Card>
-                ) : null}
               </div>
-            </div>
-          </TabsContent>
-        ))}
-      </Tabs>
+            </aside>
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel
+            id="viber-settings-content-panel"
+            defaultSize={previewOpen ? "52%" : "82%"}
+            minSize="35%"
+            className="min-h-0 min-w-0"
+          >
+            {mobileContent}
+          </ResizablePanel>
+          {previewOpen ? (
+            <>
+              <ResizableHandle withHandle />
+              <ResizablePanel
+                id="viber-preview-panel"
+                defaultSize="30%"
+                minSize="22%"
+                maxSize="40%"
+                className="min-h-0 min-w-72"
+              >
+                {previewPanel}
+              </ResizablePanel>
+            </>
+          ) : null}
+        </ResizablePanelGroup>
+      )}
     </div>
   )
 }
@@ -747,44 +1189,43 @@ function MenuSection({
   setDraft: React.Dispatch<React.SetStateAction<ViberExperienceRevision | null>>
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Main menu</CardTitle>
-        <CardDescription>
-          Automation, website, phone sharing, or human handoff actions.
-        </CardDescription>
+    <Frame>
+      <FrameHeader className="flex-row items-start justify-between gap-4">
+        <div>
+          <FrameTitle>Main menu</FrameTitle>
+          <FrameDescription>
+            Automation, website, phone sharing, or human handoff actions.
+          </FrameDescription>
+        </div>
         {canManage ? (
-          <CardAction>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                setDraft((current) =>
-                  current
-                    ? {
-                        ...current,
-                        menu_buttons: [
-                          ...current.menu_buttons,
-                          {
-                            label: { [locale]: "New button" },
-                            action_type: "reply",
-                            action_value: { [locale]: "new button" },
-                            background_color: "#7360F2",
-                          },
-                        ],
-                      }
-                    : current
-                )
-              }
-            >
-              <PlusIcon data-icon="inline-start" />
-              Add button
-            </Button>
-          </CardAction>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              setDraft((current) =>
+                current
+                  ? {
+                      ...current,
+                      menu_buttons: [
+                        ...current.menu_buttons,
+                        {
+                          label: { [locale]: "New button" },
+                          action_type: "reply",
+                          action_value: { [locale]: "new button" },
+                          background_color: "#7360F2",
+                        },
+                      ],
+                    }
+                  : current
+              )
+            }
+          >
+            <PlusIcon data-icon="inline-start" />
+            Add button
+          </Button>
         ) : null}
-      </CardHeader>
-      <CardContent>
+      </FrameHeader>
+      <FramePanel>
         <FieldGroup>
           {draft.menu_buttons.length === 0 ? (
             <Empty>
@@ -910,7 +1351,6 @@ function MenuSection({
               {canManage ? (
                 <Button
                   type="button"
-                  size="icon-sm"
                   variant="ghost"
                   onClick={() =>
                     setDraft((current) =>
@@ -932,8 +1372,14 @@ function MenuSection({
             </FieldGroup>
           ))}
         </FieldGroup>
-      </CardContent>
-    </Card>
+      </FramePanel>
+      <FrameFooter className="flex-row items-center justify-between">
+        <span className="text-sm text-muted-foreground">Menu actions</span>
+        <span className="text-sm font-medium tabular-nums">
+          {draft.menu_buttons.length}
+        </span>
+      </FrameFooter>
+    </Frame>
   )
 }
 
@@ -1060,39 +1506,39 @@ function AutomationSection({
           }}
         />
       ) : null}
-      <Card>
-        <CardHeader>
-          <CardTitle>Trigger automations</CardTitle>
-          <CardDescription>
-            Triggers use exact matching after case and whitespace normalization.
-          </CardDescription>
+      <Frame>
+        <FrameHeader className="flex-row items-start justify-between gap-4">
+          <div>
+            <FrameTitle>Trigger automations</FrameTitle>
+            <FrameDescription>
+              Triggers use exact matching after case and whitespace
+              normalization.
+            </FrameDescription>
+          </div>
           {canManage ? (
-            <CardAction>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  setDraft((current) =>
-                    current
-                      ? {
-                          ...current,
-                          automations: [
-                            ...current.automations,
-                            emptyAutomation(locale),
-                          ],
-                        }
-                      : current
-                  )
-                }
-              >
-                <PlusIcon data-icon="inline-start" />
-                Add automation
-              </Button>
-            </CardAction>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                setDraft((current) =>
+                  current
+                    ? {
+                        ...current,
+                        automations: [
+                          ...current.automations,
+                          emptyAutomation(locale),
+                        ],
+                      }
+                    : current
+                )
+              }
+            >
+              <PlusIcon data-icon="inline-start" />
+              Add automation
+            </Button>
           ) : null}
-        </CardHeader>
-        <CardContent>
+        </FrameHeader>
+        <FramePanel>
           <FieldGroup>
             {draft.automations.length === 0 ? (
               <Empty>
@@ -1170,7 +1616,6 @@ function AutomationSection({
                   {canManage ? (
                     <Button
                       type="button"
-                      size="icon-sm"
                       variant="ghost"
                       onClick={() =>
                         setDraft((current) =>
@@ -1251,7 +1696,6 @@ function AutomationSection({
                       {canManage ? (
                         <Button
                           type="button"
-                          size="sm"
                           variant="ghost"
                           onClick={() =>
                             update(index, {
@@ -1461,7 +1905,6 @@ function AutomationSection({
                               <div className="flex flex-wrap gap-2">
                                 <Button
                                   type="button"
-                                  size="sm"
                                   variant="outline"
                                   render={<label />}
                                   nativeButton={false}
@@ -1484,7 +1927,6 @@ function AutomationSection({
                                 {card.image_url ? (
                                   <Button
                                     type="button"
-                                    size="sm"
                                     variant="ghost"
                                     onClick={() => void removeImage(card.id)}
                                   >
@@ -1493,7 +1935,6 @@ function AutomationSection({
                                 ) : null}
                                 <Button
                                   type="button"
-                                  size="sm"
                                   variant="ghost"
                                   className="ml-auto text-destructive"
                                   onClick={() =>
@@ -1527,104 +1968,105 @@ function AutomationSection({
               </FieldGroup>
             ))}
           </FieldGroup>
-        </CardContent>
-      </Card>
+        </FramePanel>
+        <FrameFooter className="flex-row items-center justify-between">
+          <span className="text-sm text-muted-foreground">
+            Enabled automations
+          </span>
+          <span className="text-sm font-medium tabular-nums">
+            {
+              draft.automations.filter((automation) => automation.is_enabled)
+                .length
+            }
+          </span>
+        </FrameFooter>
+      </Frame>
     </>
   )
 }
 
-function ViberPreview({
-  revision,
-  locale,
-  automation,
+function SendTestFrame({
+  conversations,
+  conversationId,
+  previewExpiresAt,
+  remainingSeconds,
+  busy,
+  onConversationChange,
+  onStart,
+  onStop,
 }: {
-  revision: ViberExperienceRevision
-  locale: ViberLocale
-  automation?: ViberAutomation
+  conversations: Conversation[]
+  conversationId: string
+  previewExpiresAt: string | null
+  remainingSeconds: number
+  busy: string | null
+  onConversationChange: (conversationId: string) => void
+  onStart: () => void
+  onStop: () => void
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Live Viber preview</CardTitle>
-        <CardDescription>
-          Draft · {locale === "my" ? "Burmese" : "English"}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3 bg-muted/40 py-4">
-        <Message align="start">
-          <MessageContent>
-            <Bubble variant="outline" align="start">
-              <BubbleContent>
-                {localized(revision.welcome_text, locale) || "Welcome message"}
-              </BubbleContent>
-            </Bubble>
-          </MessageContent>
-        </Message>
-        <div className="grid grid-cols-2 gap-2">
-          {revision.menu_buttons.map((button, index) => (
+    <Frame>
+      <FrameHeader>
+        <FrameTitle>Send test</FrameTitle>
+        <FrameDescription>
+          Test this draft with a contact for 30 minutes without affecting live chats.
+        </FrameDescription>
+      </FrameHeader>
+      <FramePanel>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="viber-preview-conversation">
+              Viber conversation
+            </FieldLabel>
+            <SearchableDropdown
+              id="viber-preview-conversation"
+              options={conversations.map((conversation) => ({
+                id: String(conversation.id),
+                value: String(conversation.id),
+                label: conversation.customer.displayName,
+              }))}
+              placeholder="Select a conversation"
+              searchPlaceholder="Search conversations..."
+              emptyMessage="No Viber conversations yet."
+              value={conversationId}
+              disabled={previewExpiresAt !== null}
+              onValueChange={onConversationChange}
+            />
+          </Field>
+          {previewExpiresAt ? (
+            <Alert>
+              <Clock3Icon />
+              <AlertTitle>Preview active</AlertTitle>
+              <AlertDescription>
+                {Math.ceil(remainingSeconds / 60)} minutes left for this
+                contact.
+              </AlertDescription>
+              <AlertAction>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={onStop}
+                  disabled={busy !== null}
+                >
+                  {busy === "stop-preview" ? <Spinner /> : null}
+                  Stop
+                </Button>
+              </AlertAction>
+            </Alert>
+          ) : (
             <Button
-              key={button.id ?? index}
               type="button"
-              size="sm"
-              variant="secondary"
-              disabled
+              className="w-full"
+              onClick={onStart}
+              disabled={!conversationId || busy !== null}
             >
-              {localized(button.label, locale) || "Button"}
+              {busy === "preview" ? <Spinner /> : <SendIcon />}
+              Send draft to contact
             </Button>
-          ))}
-        </div>
-        {automation?.response_type === "text" ? (
-          <Message align="start">
-            <MessageContent>
-              <Bubble variant="outline" align="start">
-                <BubbleContent>
-                  {localized(automation.response_text, locale) ||
-                    "Automation response"}
-                </BubbleContent>
-              </Bubble>
-            </MessageContent>
-          </Message>
-        ) : null}
-        {automation?.response_type === "carousel" ? (
-          <div className="flex snap-x gap-2 overflow-x-auto pb-2">
-            {automation.cards.map((card, index) => (
-              <Card
-                key={card.id ?? index}
-                size="sm"
-                className="w-56 shrink-0 snap-start"
-              >
-                {card.image_url ? (
-                  <Image
-                    src={card.image_url}
-                    alt={localized(card.title, locale) || "Carousel card image"}
-                    width={224}
-                    height={126}
-                    unoptimized
-                    className="aspect-video w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex aspect-video items-center justify-center bg-muted">
-                    <ImageIcon />
-                  </div>
-                )}
-                <CardHeader>
-                  <CardTitle>
-                    {localized(card.title, locale) || "Card title"}
-                  </CardTitle>
-                  <CardDescription>
-                    {localized(card.description, locale)}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button type="button" size="sm" className="w-full" disabled>
-                    {localized(card.cta_label, locale) || "Open"}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+          )}
+        </FieldGroup>
+      </FramePanel>
+    </Frame>
   )
 }

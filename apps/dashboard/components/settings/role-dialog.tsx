@@ -101,7 +101,7 @@ function RoleDialogContent({
             ? isSystem
               ? "Update description for this system role."
               : "Update custom role details."
-            : "Define a tailored role name and description. Permissions can be configured directly in the permissions sub-table."}
+            : "Set a name and description. You can configure permissions next."}
         </DialogDescription>
       </DialogHeader>
 

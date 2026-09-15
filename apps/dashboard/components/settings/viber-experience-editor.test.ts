@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  enabledLocalesAfterChange,
   localeComplete,
   selectLabel,
   VIBER_CAROUSEL_IMAGE_REQUIREMENTS,
+  VIBER_SECTION_LABELS,
+  viberRevisionSummary,
 } from "./viber-experience-editor"
 import type { ViberExperienceRevision } from "./viber-experience-api"
 
@@ -92,6 +95,33 @@ describe("Viber editor select labels", () => {
 
     expect(selectLabel(options, "open_url")).toBe("URL")
     expect(selectLabel(options, "share-phone")).toBe("Share phone")
+  })
+})
+
+describe("Viber editor navigation and summary", () => {
+  it("exposes the agent-style configuration sections", () => {
+    expect(VIBER_SECTION_LABELS).toEqual({
+      overview: "Overview",
+      all: "All Settings",
+      messages: "Messages",
+      menu: "Main Menu",
+      automations: "Automations",
+    })
+  })
+
+  it("keeps enabled locales in their canonical display order", () => {
+    expect(enabledLocalesAfterChange(["my"], "en", true)).toEqual(["en", "my"])
+    expect(enabledLocalesAfterChange(["en", "my"], "my", false)).toEqual(["en"])
+  })
+
+  it("derives the overview summary from the active draft", () => {
+    expect(viberRevisionSummary(revision())).toEqual({
+      isComplete: true,
+      enabledLocaleLabels: ["English", "Burmese"],
+      defaultLocaleLabel: "English",
+      menuButtonCount: 1,
+      enabledAutomationCount: 1,
+    })
   })
 })
 

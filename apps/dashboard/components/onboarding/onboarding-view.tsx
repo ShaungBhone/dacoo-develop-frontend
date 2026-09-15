@@ -391,7 +391,7 @@ export function OnboardingView() {
 
       await completeOnboarding()
       await refreshUser()
-      router.replace("/dashboard")
+      router.replace("/home")
     } catch (submissionError) {
       if (submissionError instanceof ApiError) {
         setError(submissionError.message)
@@ -410,7 +410,7 @@ export function OnboardingView() {
 
     try {
       await completeOnboarding()
-      router.replace("/dashboard")
+      router.replace("/home")
     } catch (skipError) {
       setError(
         skipError instanceof ApiError

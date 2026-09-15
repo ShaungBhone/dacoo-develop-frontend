@@ -231,12 +231,15 @@ export function SettingsWorkspace() {
     activeTab === "tags" ||
     activeTab === "objects" ||
     activeTab === "roles"
+  const isViberConfigurator =
+    activeTab === "integrations" && searchParams.get("configure") === "viber"
+  const isFullHeightContent = isFullHeightTableTab || isViberConfigurator
 
   const settingsContent = (
     <div
       className={cn(
         "flex scrollbar-thin h-full min-h-0 w-full min-w-0 flex-1 flex-col",
-        isFullHeightTableTab
+        isFullHeightContent
           ? "overflow-hidden"
           : "overflow-y-auto px-4 py-6 lg:px-6"
       )}
@@ -244,10 +247,10 @@ export function SettingsWorkspace() {
       <div
         className={cn(
           "mx-auto flex min-h-0 w-full flex-1 flex-col",
-          !isFullHeightTableTab && "gap-6"
+          !isFullHeightContent && "gap-6"
         )}
       >
-        {isMobile && (
+        {isMobile && !isViberConfigurator && (
           <Sheet open={navigationOpen} onOpenChange={setNavigationOpen}>
             <SheetTrigger
               render={
@@ -288,7 +291,9 @@ export function SettingsWorkspace() {
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden bg-background text-foreground">
-      {!isMobile ? (
+      {isViberConfigurator ? (
+        settingsContent
+      ) : !isMobile ? (
         <ResizablePanelGroup className="min-h-0 flex-1 overflow-hidden">
           <ResizablePanel
             id="settings-nav-panel"
