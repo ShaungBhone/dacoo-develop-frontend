@@ -7,7 +7,6 @@ import {
   ArrowLeftIcon,
   CheckCircle2Icon,
   ChevronDownIcon,
-  Clock3Icon,
   FileTextIcon,
   ImageIcon,
   ListIcon,
@@ -16,7 +15,6 @@ import {
   PanelRightIcon,
   PlusIcon,
   SaveIcon,
-  SendIcon,
   SettingsIcon,
   SlidersHorizontalIcon,
   Trash2Icon,
@@ -30,12 +28,7 @@ import { ApiError } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { fetchConversations, type Conversation } from "@/components/inbox/api"
 import { useIsMobile } from "@/hooks/use-mobile"
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/reui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
@@ -62,7 +55,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
-import { SearchableDropdown } from "@/components/ui/searchable-dropdown"
 import { ImageCropDialog } from "@/components/settings/image-crop-dialog"
 import { ViberMobilePreview } from "@/components/settings/viber-mobile-preview"
 import {
@@ -103,6 +95,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
+import { ResponsiveSidePanel } from "@/components/ui/responsive-side-panel"
 import {
   createViberDraft,
   fetchViberExperience,
@@ -580,7 +573,6 @@ export function ViberExperienceEditor({
   const [navigationOpen, setNavigationOpen] = React.useState(false)
   const [previewOpen, setPreviewOpen] = React.useState(false)
   const [conversations, setConversations] = React.useState<Conversation[]>([])
-  const [conversationId, setConversationId] = React.useState("")
   const [previewExpiresAt, setPreviewExpiresAt] = React.useState<string | null>(
     null
   )
@@ -610,7 +602,6 @@ export function ViberExperienceEditor({
           )
           if (!active) return
           setConversations(items)
-          setConversationId(items[0] ? String(items[0].id) : "")
         }
       } catch (loadError) {
         if (active)
@@ -706,10 +697,10 @@ export function ViberExperienceEditor({
     }
   }
 
-  async function startPreview() {
-    if (!conversationId) return
+  async function startPreview(conversationId: string): Promise<boolean> {
+    if (!conversationId || previewConversationId) return false
     const saved = await save()
-    if (!saved) return
+    if (!saved) return false
     setBusy("preview")
     try {
       const session = await startViberPreview(
@@ -720,23 +711,27 @@ export function ViberExperienceEditor({
       setPreviewExpiresAt(session.expires_at)
       setPreviewConversationId(session.conversation_id)
       toast.success("Draft sent. This contact will use it for 30 minutes.")
+      return true
     } catch (previewError) {
       setError(messageFor(previewError, "Failed to start the Viber preview."))
+      return false
     } finally {
       setBusy(null)
     }
   }
 
-  async function stopPreview() {
-    if (!previewConversationId) return
+  async function stopPreview(): Promise<boolean> {
+    if (!previewConversationId) return false
     setBusy("stop-preview")
     try {
       await stopViberPreview(organizationId, previewConversationId)
       setPreviewExpiresAt(null)
       setPreviewConversationId(null)
       toast.success("Preview session stopped.")
+      return true
     } catch (previewError) {
       setError(messageFor(previewError, "Failed to stop the preview."))
+      return false
     } finally {
       setBusy(null)
     }
@@ -932,25 +927,35 @@ export function ViberExperienceEditor({
   )
 
   const previewPanel = (
-    <div className="flex scrollbar-thin h-full min-h-0 flex-col gap-4 overflow-y-auto p-4">
+    <div className="h-full min-h-0 overflow-hidden">
       {draft ? (
         <ViberMobilePreview
           key={`${locale}-${currentAutomation?.id ?? "overview"}`}
           revision={draft}
           locale={locale}
           automation={currentAutomation}
-        />
-      ) : null}
-      {canManage ? (
-        <SendTestFrame
-          conversations={conversations}
-          conversationId={conversationId}
-          previewExpiresAt={previewExpiresAt}
-          remainingSeconds={remainingSeconds}
-          busy={busy}
-          onConversationChange={setConversationId}
-          onStart={() => void startPreview()}
-          onStop={() => void stopPreview()}
+          onClose={() => setPreviewOpen(false)}
+          sendTest={
+            canManage
+              ? {
+                  conversations: conversations.map((conversation) => ({
+                    id: String(conversation.id),
+                    label: conversation.customer.displayName,
+                  })),
+                  activeConversationId: previewConversationId,
+                  remainingSeconds,
+                  disabled: busy !== null,
+                  status:
+                    busy === "preview"
+                      ? "starting"
+                      : busy === "stop-preview"
+                        ? "stopping"
+                        : "idle",
+                  onStart: startPreview,
+                  onStop: stopPreview,
+                }
+              : undefined
+          }
         />
       ) : null}
     </div>
@@ -1097,34 +1102,19 @@ export function ViberExperienceEditor({
       {isMobile ? (
         <>
           {mobileContent}
-          <Sheet open={previewOpen} onOpenChange={setPreviewOpen}>
-            <SheetContent
-              side="right"
-              className="w-full sm:max-w-md"
-              onPointerDownOutside={(event) => {
-                const target = event.target as HTMLElement | null
-                const isOverlay =
-                  target?.getAttribute?.("data-slot") === "sheet-overlay" ||
-                  target?.classList?.contains("bg-black/30")
-                if (!isOverlay) event.preventDefault()
-              }}
-              onInteractOutside={(event) => {
-                const target = event.target as HTMLElement | null
-                const isOverlay =
-                  target?.getAttribute?.("data-slot") === "sheet-overlay" ||
-                  target?.classList?.contains("bg-black/30")
-                if (!isOverlay) event.preventDefault()
-              }}
-            >
-              <SheetHeader>
-                <SheetTitle>Preview and test</SheetTitle>
-                <SheetDescription>
-                  Review this draft and send it to an existing Viber contact.
-                </SheetDescription>
-              </SheetHeader>
-              {previewPanel}
-            </SheetContent>
-          </Sheet>
+          <ResponsiveSidePanel
+            id="viber-preview-panel"
+            isMobile
+            open={previewOpen}
+            onOpenChange={setPreviewOpen}
+            title="Preview and test"
+            description="Review this draft and send it to an existing Viber contact."
+            mobileClassName="gap-0 p-0"
+            mobileHeaderClassName="sr-only"
+            showMobileCloseButton={false}
+          >
+            {previewPanel}
+          </ResponsiveSidePanel>
         </>
       ) : (
         <ResizablePanelGroup
@@ -1157,20 +1147,16 @@ export function ViberExperienceEditor({
           >
             {mobileContent}
           </ResizablePanel>
-          {previewOpen ? (
-            <>
-              <ResizableHandle withHandle />
-              <ResizablePanel
-                id="viber-preview-panel"
-                defaultSize="30%"
-                minSize="22%"
-                maxSize="40%"
-                className="min-h-0 min-w-72"
-              >
-                {previewPanel}
-              </ResizablePanel>
-            </>
-          ) : null}
+          <ResponsiveSidePanel
+            id="viber-preview-panel"
+            isMobile={false}
+            open={previewOpen}
+            onOpenChange={setPreviewOpen}
+            title="Preview and test"
+            description="Review this draft and send it to an existing Viber contact."
+          >
+            {previewPanel}
+          </ResponsiveSidePanel>
         </ResizablePanelGroup>
       )}
     </div>
@@ -1982,91 +1968,5 @@ function AutomationSection({
         </FrameFooter>
       </Frame>
     </>
-  )
-}
-
-function SendTestFrame({
-  conversations,
-  conversationId,
-  previewExpiresAt,
-  remainingSeconds,
-  busy,
-  onConversationChange,
-  onStart,
-  onStop,
-}: {
-  conversations: Conversation[]
-  conversationId: string
-  previewExpiresAt: string | null
-  remainingSeconds: number
-  busy: string | null
-  onConversationChange: (conversationId: string) => void
-  onStart: () => void
-  onStop: () => void
-}) {
-  return (
-    <Frame>
-      <FrameHeader>
-        <FrameTitle>Send test</FrameTitle>
-        <FrameDescription>
-          Test this draft with a contact for 30 minutes without affecting live chats.
-        </FrameDescription>
-      </FrameHeader>
-      <FramePanel>
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="viber-preview-conversation">
-              Viber conversation
-            </FieldLabel>
-            <SearchableDropdown
-              id="viber-preview-conversation"
-              options={conversations.map((conversation) => ({
-                id: String(conversation.id),
-                value: String(conversation.id),
-                label: conversation.customer.displayName,
-              }))}
-              placeholder="Select a conversation"
-              searchPlaceholder="Search conversations..."
-              emptyMessage="No Viber conversations yet."
-              value={conversationId}
-              disabled={previewExpiresAt !== null}
-              onValueChange={onConversationChange}
-            />
-          </Field>
-          {previewExpiresAt ? (
-            <Alert>
-              <Clock3Icon />
-              <AlertTitle>Preview active</AlertTitle>
-              <AlertDescription>
-                {Math.ceil(remainingSeconds / 60)} minutes left for this
-                contact.
-              </AlertDescription>
-              <AlertAction>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={onStop}
-                  disabled={busy !== null}
-                >
-                  {busy === "stop-preview" ? <Spinner /> : null}
-                  Stop
-                </Button>
-              </AlertAction>
-            </Alert>
-          ) : (
-            <Button
-              type="button"
-              className="w-full"
-              onClick={onStart}
-              disabled={!conversationId || busy !== null}
-            >
-              {busy === "preview" ? <Spinner /> : <SendIcon />}
-              Send draft to contact
-            </Button>
-          )}
-        </FieldGroup>
-      </FramePanel>
-    </Frame>
   )
 }

@@ -5,26 +5,73 @@ import Image from "next/image"
 import {
   type LocalizedText,
   type ViberAutomation,
+  type ViberCarouselCard,
   type ViberExperienceRevision,
   type ViberLocale,
   type ViberMenuButton,
 } from "./viber-experience-api"
-import { Viber } from "@/components/ui/svgs/viber"
 import {
-  CheckCheckIcon,
-  ChevronLeftIcon,
+  BotIcon,
+  Clock3Icon,
   ExternalLinkIcon,
+  FlaskConicalIcon,
   HeadphonesIcon,
   ImageIcon,
   KeyboardIcon,
   LayoutGridIcon,
-  MicIcon,
-  PlusIcon,
   RotateCcwIcon,
   SendIcon,
-  SmileIcon,
+  XIcon,
 } from "@/components/ui/icons"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { Bubble, BubbleContent } from "@/components/ui/bubble"
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { Field } from "@/components/ui/field"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
+import {
+  Message,
+  MessageAvatar,
+  MessageContent,
+  MessageFooter,
+  MessageGroup,
+  MessageHeader,
+} from "@/components/ui/message"
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
 
 function localized(
@@ -48,6 +95,24 @@ type ViberMobilePreviewProps = {
   locale: ViberLocale
   automation?: ViberAutomation
   className?: string
+  onClose?: () => void
+  sendTest?: {
+    conversations: { id: string; label: string }[]
+    activeConversationId: string | null
+    remainingSeconds: number
+    disabled: boolean
+    status: "idle" | "starting" | "stopping"
+    onStart: (conversationId: string) => Promise<boolean>
+    onStop: () => Promise<boolean>
+  }
+}
+
+type PreviewActionResult = {
+  automation?: ViberAutomation
+  externalUrl?: string
+  isHandoff?: boolean
+  responseText?: string
+  userText: string
 }
 
 function buildInitialMessages(
@@ -80,11 +145,88 @@ function buildInitialMessages(
   return initialMsgs
 }
 
+function findMatchingAutomation(
+  revision: ViberExperienceRevision,
+  locale: ViberLocale,
+  query: string
+): ViberAutomation | undefined {
+  const clean = query.trim().toLowerCase()
+  if (!clean) return undefined
+
+  return revision.automations.find((item) => {
+    if (!item.is_enabled) return false
+    const triggers = item.triggers?.[locale] ?? item.triggers?.en ?? []
+
+    return triggers.some((trigger) => trigger.trim().toLowerCase() === clean)
+  })
+}
+
+export function safeViberPreviewUrl(value: string): string | null {
+  try {
+    const url = new URL(value)
+
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.toString()
+      : null
+  } catch {
+    return null
+  }
+}
+
+export function resolveViberCarouselAction(
+  revision: ViberExperienceRevision,
+  locale: ViberLocale,
+  card: ViberCarouselCard
+): PreviewActionResult {
+  const userText = localized(card.cta_label, locale) || "Open"
+
+  if (card.action_type === "open_url") {
+    const externalUrl = safeViberPreviewUrl(
+      localized(card.action_value, locale)
+    )
+
+    return { userText, ...(externalUrl ? { externalUrl } : {}) }
+  }
+
+  const handoffText =
+    localized(revision.handoff_text, locale) ||
+    "An agent has been notified and will be with you shortly."
+
+  if (card.action_type === "handoff") {
+    return { userText, responseText: handoffText, isHandoff: true }
+  }
+
+  const trigger = localized(card.action_value, locale) || userText
+  const matched = findMatchingAutomation(revision, locale, trigger)
+
+  if (matched) {
+    const isHandoff = matched.response_type === "handoff"
+
+    return {
+      userText,
+      automation: matched,
+      responseText:
+        localized(matched.response_text, locale) ||
+        (isHandoff ? handoffText : undefined),
+      isHandoff,
+    }
+  }
+
+  return {
+    userText,
+    responseText:
+      localized(revision.fallback_text, locale) ||
+      "Sorry, I didn't quite catch that. Please try another message.",
+  }
+}
+
 export function ViberMobilePreview({
   revision,
   locale,
   automation,
   className,
+  onClose,
+  sendTest,
 }: ViberMobilePreviewProps) {
   const welcomeText =
     localized(revision.welcome_text, locale) ||
@@ -100,11 +242,19 @@ export function ViberMobilePreview({
     buildInitialMessages(welcomeText, automation, locale)
   )
   const [inputText, setInputText] = React.useState("")
+  const [sendTestOpen, setSendTestOpen] = React.useState(false)
+  const [pendingTestAction, setPendingTestAction] = React.useState<
+    "starting" | "stopping" | null
+  >(null)
   const [isKeyboardDocked, setIsKeyboardDocked] = React.useState(
     revision.menu_buttons.length > 0
   )
   const messagesEndRef = React.useRef<HTMLDivElement>(null)
   const counterRef = React.useRef(1)
+  const activeTestConversation = sendTest?.conversations.find(
+    (conversation) => conversation.id === sendTest.activeConversationId
+  )
+  const testStatus = pendingTestAction ?? sendTest?.status ?? "idle"
 
   const getNextId = (prefix: string) => {
     counterRef.current += 1
@@ -122,20 +272,6 @@ export function ViberMobilePreview({
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
-
-  // Find matching automation for a given query
-  const findMatchingAutomation = (
-    query: string
-  ): ViberAutomation | undefined => {
-    const clean = query.trim().toLowerCase()
-    if (!clean) return undefined
-
-    return revision.automations.find((a) => {
-      if (!a.is_enabled) return false
-      const triggers = a.triggers?.[locale] ?? a.triggers?.en ?? []
-      return triggers.some((t) => t.trim().toLowerCase() === clean)
-    })
-  }
 
   // Handle menu button clicks
   const handleButtonClick = (button: ViberMenuButton) => {
@@ -178,7 +314,7 @@ export function ViberMobilePreview({
     } else {
       // "reply" or generic action: check for matching automation trigger
       const triggerValue = localized(button.action_value, locale) || label
-      const matched = findMatchingAutomation(triggerValue)
+      const matched = findMatchingAutomation(revision, locale, triggerValue)
 
       if (matched) {
         botMsg = {
@@ -203,9 +339,8 @@ export function ViberMobilePreview({
   }
 
   // Handle text input submit
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault()
-    const text = inputText.trim()
+  const handleSendMessage = (value: string) => {
+    const text = value.trim()
     if (!text) return
 
     const userMsg: ChatMessage = {
@@ -216,7 +351,7 @@ export function ViberMobilePreview({
     }
 
     // Search for trigger
-    const matched = findMatchingAutomation(text)
+    const matched = findMatchingAutomation(revision, locale, text)
     let botMsg: ChatMessage
 
     if (matched) {
@@ -241,189 +376,288 @@ export function ViberMobilePreview({
     setInputText("")
   }
 
+  const handleCarouselAction = (card: ViberCarouselCard) => {
+    const result = resolveViberCarouselAction(revision, locale, card)
+    const userMsg: ChatMessage = {
+      id: getNextId("user"),
+      sender: "user",
+      text: result.userText,
+      time: "Just now",
+    }
+    const hasResponse = Boolean(
+      result.responseText || result.automation || result.isHandoff
+    )
+    const botMsg: ChatMessage | null = hasResponse
+      ? {
+          id: getNextId("bot"),
+          sender: "bot",
+          text: result.responseText,
+          automation: result.automation,
+          isHandoff: result.isHandoff,
+          time: "Just now",
+        }
+      : null
+
+    setMessages((current) => [...current, userMsg, ...(botMsg ? [botMsg] : [])])
+  }
+
+  const handleStartTest = async (conversationId: string) => {
+    if (!sendTest) return
+
+    setPendingTestAction("starting")
+    try {
+      const started = await sendTest.onStart(conversationId)
+      if (started) {
+        setSendTestOpen(false)
+      }
+    } finally {
+      setPendingTestAction(null)
+    }
+  }
+
+  const handleStopTest = async () => {
+    if (!sendTest) return
+
+    setPendingTestAction("stopping")
+    try {
+      await sendTest.onStop()
+    } finally {
+      setPendingTestAction(null)
+    }
+  }
+
   return (
     <div
       className={cn(
-        "relative mx-auto flex h-[620px] w-full max-w-[380px] flex-col overflow-hidden rounded-2xl border border-border/80 bg-[#ECEEF5] text-zinc-900 shadow-xl dark:border-zinc-800 dark:bg-[#1C1C22] dark:text-zinc-100",
+        "flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background text-foreground",
         className
       )}
     >
-      {/* 1. Authentic Viber Purple Top App Bar */}
-      <div className="flex h-14 shrink-0 items-center justify-between bg-[#7360F2] px-2 text-white shadow-sm">
-        <div className="flex items-center gap-2 overflow-hidden">
-          <button
-            type="button"
-            className="flex size-7 items-center justify-center rounded-full transition-colors hover:bg-white/10"
-            aria-label="Back"
-          >
-            <ChevronLeftIcon className="size-5" />
-          </button>
-
-          <div className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-white/20 ring-1 ring-white/30">
-            <Viber className="size-5 text-white" />
-            <span
-              className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-[#7360F2] bg-emerald-400"
-              title="Online"
-            />
+      <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <BotIcon className="size-4" />
           </div>
-
-          <div className="min-w-0 flex-1 leading-tight">
-            <div className="flex items-center gap-1">
-              <span className="truncate text-xs font-semibold text-white">
-                Viber Bot
-              </span>
-              <span className="rounded bg-white/20 px-1 py-0.2 text-[9px] font-medium tracking-wide uppercase text-white">
-                Bot
-              </span>
-            </div>
-            <p className="text-[10px] text-white/80">Online</p>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">Automation preview</p>
+            <p className="truncate text-xs text-muted-foreground">
+              Viber · {locale.toUpperCase()}
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <Button
             type="button"
-            size="sm"
+            size="icon-sm"
             variant="ghost"
             onClick={handleResetChat}
-            className="size-8 p-0 text-white hover:bg-white/15 hover:text-white"
             title="Reset preview conversation"
             aria-label="Reset conversation"
           >
             <RotateCcwIcon className="size-4" />
           </Button>
-          <div className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-medium uppercase text-white">
-            {locale}
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Viber Chat Feed (Soft Lilac Wallpaper) */}
-      <div className="scrollbar-thin flex flex-1 flex-col overflow-y-auto p-3 space-y-3">
-        {/* Date separator pill */}
-        <div className="my-1 flex justify-center">
-          <span className="rounded-full bg-black/10 px-3 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-white/10 dark:text-zinc-300">
-            Today
-          </span>
-        </div>
-
-        {/* Message list */}
-        {messages.map((msg) => {
-          if (msg.sender === "user") {
-            return (
-              <div
-                key={msg.id}
-                className="flex max-w-[82%] flex-col items-end self-end"
-              >
-                <div className="relative rounded-2xl rounded-br-xs bg-[#E3DFFC] px-3.5 py-2 text-xs text-[#2B1C6D] shadow-sm dark:bg-[#5C4BD9]/40 dark:text-purple-100">
-                  <p className="whitespace-pre-wrap break-words">{msg.text}</p>
-                  <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-[#7360F2] dark:text-purple-300">
-                    <span>{msg.time}</span>
-                    <CheckCheckIcon className="size-3.5" />
-                  </div>
-                </div>
-              </div>
-            )
-          }
-
-          // Bot message
-          return (
-            <div
-              key={msg.id}
-              className="flex max-w-[85%] flex-col items-start self-start space-y-2"
+          {onClose ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              onClick={onClose}
+              aria-label="Close automation preview"
             >
-              {msg.text ? (
-                <div className="relative rounded-2xl rounded-bl-xs bg-white px-3.5 py-2 text-xs text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100">
-                  <p className="whitespace-pre-wrap break-words">{msg.text}</p>
-                  <span className="mt-1 block text-right text-[10px] text-zinc-400">
-                    {msg.time}
-                  </span>
-                </div>
-              ) : null}
+              <XIcon className="size-4" />
+            </Button>
+          ) : null}
+        </div>
+      </header>
 
-              {/* Carousel cards if attached */}
-              {msg.automation?.response_type === "carousel" &&
-              msg.automation.cards.length > 0 ? (
-                <div className="flex w-full snap-x gap-2 overflow-x-auto pb-1">
-                  {msg.automation.cards.map((card, idx) => (
-                    <div
-                      key={card.id ?? idx}
-                      className="w-48 shrink-0 snap-start overflow-hidden rounded-xl border border-border/80 bg-white shadow-sm dark:bg-zinc-800"
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-muted/50">
+        <MessageGroup className="gap-6 px-4 py-6">
+          {messages.map((msg) => {
+            if (msg.sender === "user") {
+              return (
+                <Message key={msg.id} align="end">
+                  <MessageContent>
+                    <Bubble align="end" variant="default">
+                      <BubbleContent>
+                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                      </BubbleContent>
+                    </Bubble>
+                    <MessageFooter>
+                      <span>{msg.time}</span>
+                    </MessageFooter>
+                  </MessageContent>
+                </Message>
+              )
+            }
+
+            return (
+              <Message key={msg.id} align="start">
+                <MessageAvatar>
+                  <Avatar className="size-8">
+                    <AvatarFallback>
+                      <BotIcon className="size-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                </MessageAvatar>
+                <MessageContent>
+                  <MessageHeader>Automation</MessageHeader>
+                  {msg.text ? (
+                    <Bubble variant="outline">
+                      <BubbleContent>
+                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                      </BubbleContent>
+                    </Bubble>
+                  ) : null}
+
+                  {msg.automation?.response_type === "carousel" &&
+                  msg.automation.cards.length > 0 ? (
+                    <Carousel
+                      opts={{
+                        align: "center",
+                        loop: msg.automation.cards.length > 1,
+                      }}
+                      className="w-full min-w-0"
                     >
-                      {card.image_url ? (
-                        <Image
-                          src={card.image_url}
-                          alt={localized(card.title, locale) || "Card image"}
-                          width={192}
-                          height={108}
-                          unoptimized
-                          className="aspect-video w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex aspect-video items-center justify-center bg-zinc-100 text-zinc-400 dark:bg-zinc-700">
-                          <ImageIcon className="size-6" />
-                        </div>
-                      )}
-                      <div className="p-2.5">
-                        <h4 className="truncate text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-                          {localized(card.title, locale) || "Card title"}
-                        </h4>
-                        {localized(card.description, locale) ? (
-                          <p className="line-clamp-2 mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
-                            {localized(card.description, locale)}
-                          </p>
-                        ) : null}
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="mt-2 h-7 w-full bg-[#7360F2] text-[11px] font-medium text-white hover:bg-[#6250E0]"
-                        >
-                          {localized(card.cta_label, locale) || "Open"}
-                          {card.action_type === "open_url" ? (
-                            <ExternalLinkIcon className="ml-1 size-3" />
-                          ) : null}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+                      <CarouselContent>
+                        {msg.automation.cards.map((card, index) => {
+                          const title =
+                            localized(card.title, locale) || "Card title"
+                          const description = localized(
+                            card.description,
+                            locale
+                          )
+                          const ctaLabel =
+                            localized(card.cta_label, locale) || "Open"
+                          const action = resolveViberCarouselAction(
+                            revision,
+                            locale,
+                            card
+                          )
+                          const ctaContent = (
+                            <>
+                              {ctaLabel}
+                              {card.action_type === "open_url" ? (
+                                <ExternalLinkIcon data-icon="inline-end" />
+                              ) : null}
+                            </>
+                          )
 
-              {/* Handoff banner */}
-              {msg.isHandoff ? (
-                <div className="flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50/90 px-3 py-2 text-[11px] text-purple-900 shadow-sm dark:border-purple-800/60 dark:bg-purple-950/40 dark:text-purple-200">
-                  <HeadphonesIcon className="size-4 shrink-0 text-[#7360F2]" />
-                  <span>Transferred to human support team.</span>
-                </div>
-              ) : null}
-            </div>
-          )
-        })}
+                          return (
+                            <CarouselItem
+                              key={card.id ?? index}
+                              className="basis-[70%]"
+                            >
+                              <div className="h-full p-1">
+                                <Card size="sm" className="h-full">
+                                  {card.image_url ? (
+                                    <Image
+                                      src={card.image_url}
+                                      alt={title}
+                                      width={640}
+                                      height={360}
+                                      unoptimized
+                                      className="aspect-video w-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="flex aspect-video items-center justify-center bg-muted text-muted-foreground">
+                                      <ImageIcon className="size-6" />
+                                    </div>
+                                  )}
+                                  <CardHeader>
+                                    <CardTitle>{title}</CardTitle>
+                                  </CardHeader>
+                                  {description ? (
+                                    <CardContent>
+                                      <p className="text-sm text-muted-foreground">
+                                        {description}
+                                      </p>
+                                    </CardContent>
+                                  ) : null}
+                                  <CardFooter>
+                                    {action.externalUrl ? (
+                                      <Button
+                                        size="sm"
+                                        className="w-full"
+                                        render={
+                                          <a
+                                            href={action.externalUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                          />
+                                        }
+                                        onClick={() =>
+                                          handleCarouselAction(card)
+                                        }
+                                      >
+                                        {ctaContent}
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        className="w-full"
+                                        disabled={
+                                          card.action_type === "open_url"
+                                        }
+                                        onClick={() =>
+                                          handleCarouselAction(card)
+                                        }
+                                      >
+                                        {ctaContent}
+                                      </Button>
+                                    )}
+                                  </CardFooter>
+                                </Card>
+                              </div>
+                            </CarouselItem>
+                          )
+                        })}
+                      </CarouselContent>
+                      <CarouselPrevious className="left-2 bg-background/90" />
+                      <CarouselNext className="right-2 bg-background/90" />
+                    </Carousel>
+                  ) : null}
+
+                  {msg.isHandoff ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
+                      <HeadphonesIcon className="size-4 shrink-0" />
+                      <span>Transferred to human support team.</span>
+                    </div>
+                  ) : null}
+                  <MessageFooter>
+                    <span>{msg.time}</span>
+                  </MessageFooter>
+                </MessageContent>
+              </Message>
+            )
+          })}
+        </MessageGroup>
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 3. Docked Viber Bot Keyboard Area */}
       {isKeyboardDocked && revision.menu_buttons.length > 0 ? (
-        <div className="shrink-0 border-t border-zinc-200/90 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="mb-1.5 flex items-center justify-between px-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-              Bot Menu
+        <div className="shrink-0 border-t border-border bg-background p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              Menu actions
             </span>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => setIsKeyboardDocked(false)}
-              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-[#7360F2] hover:bg-purple-50 dark:hover:bg-purple-950/40"
               title="Switch to message typing"
             >
-              <KeyboardIcon className="size-3.5" />
-              <span>Type text</span>
-            </button>
+              <KeyboardIcon data-icon="inline-start" />
+              Type message
+            </Button>
           </div>
 
           <div
             className={cn(
-              "grid gap-1.5",
+              "grid gap-2",
               revision.menu_buttons.length === 1 ? "grid-cols-1" : "grid-cols-2"
             )}
           >
@@ -432,86 +666,171 @@ export function ViberMobilePreview({
               const customBg = button.background_color
 
               return (
-                <button
+                <Button
                   key={button.id ?? index}
                   type="button"
+                  variant={customBg ? "default" : "outline"}
+                  size="sm"
                   onClick={() => handleButtonClick(button)}
                   style={customBg ? { backgroundColor: customBg } : undefined}
                   className={cn(
-                    "flex h-9 items-center justify-center rounded-lg px-2 text-center text-xs font-medium shadow-xs transition-all active:scale-[0.98]",
-                    customBg
-                      ? "text-white"
-                      : "bg-[#7360F2] text-white hover:bg-[#6250E0]"
+                    "w-full min-w-0",
+                    customBg && "border-transparent text-white hover:opacity-90"
                   )}
                 >
                   <span className="truncate">{label}</span>
-                </button>
+                </Button>
               )
             })}
           </div>
         </div>
       ) : null}
 
-      {/* 4. Viber Bottom Action / Input Bar */}
-      <div className="shrink-0 border-t border-zinc-200/90 bg-white px-2 py-1.5 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="shrink-0 border-t border-border bg-background p-3">
         <form
-          onSubmit={handleSendMessage}
-          className="flex items-center gap-1.5"
+          onSubmit={(event) => {
+            event.preventDefault()
+            handleSendMessage(inputText)
+          }}
         >
-          {revision.menu_buttons.length > 0 && !isKeyboardDocked ? (
-            <button
-              type="button"
-              onClick={() => setIsKeyboardDocked(true)}
-              className="flex size-8 shrink-0 items-center justify-center rounded-full text-[#7360F2] transition-colors hover:bg-purple-50 dark:hover:bg-purple-950/50"
-              title="Show Viber bot menu"
-              aria-label="Show bot menu"
-            >
-              <LayoutGridIcon className="size-4.5" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="flex size-8 shrink-0 items-center justify-center rounded-full text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-200"
-              aria-label="Add attachment"
-            >
-              <PlusIcon className="size-4.5" />
-            </button>
-          )}
-
-          <div className="relative flex flex-1 items-center">
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="Type a message..."
-              className="h-8 w-full rounded-full bg-zinc-100 px-3.5 pr-8 text-xs text-zinc-900 placeholder:text-zinc-400 outline-hidden transition-all focus:bg-white focus:ring-1 focus:ring-[#7360F2] dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:bg-zinc-900"
-            />
-            <button
-              type="button"
-              className="absolute right-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-              aria-label="Insert sticker or emoji"
-            >
-              <SmileIcon className="size-4" />
-            </button>
-          </div>
-
-          {inputText.trim() ? (
-            <button
-              type="submit"
-              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#7360F2] text-white shadow-xs transition-colors hover:bg-[#6250E0]"
-              aria-label="Send message"
-            >
-              <SendIcon className="size-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="flex size-8 shrink-0 items-center justify-center rounded-full text-zinc-400 transition-colors hover:text-zinc-600 dark:hover:text-zinc-200"
-              aria-label="Voice message"
-            >
-              <MicIcon className="size-4.5" />
-            </button>
-          )}
+          <Field className="gap-0">
+            <InputGroup className="h-9 bg-background shadow-none">
+              {revision.menu_buttons.length > 0 && !isKeyboardDocked ? (
+                <InputGroupAddon align="inline-start">
+                  <InputGroupButton
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setIsKeyboardDocked(true)}
+                    title="Show menu actions"
+                    aria-label="Show menu actions"
+                  >
+                    <LayoutGridIcon className="size-4" />
+                  </InputGroupButton>
+                </InputGroupAddon>
+              ) : null}
+              <InputGroupInput
+                type="text"
+                value={inputText}
+                onChange={(event) => setInputText(event.currentTarget.value)}
+                placeholder="Type a message..."
+                autoComplete="off"
+                className="h-9 text-sm"
+              />
+              <InputGroupAddon align="inline-end" className="gap-0.5">
+                {sendTest ? (
+                  <Popover open={sendTestOpen} onOpenChange={setSendTestOpen}>
+                    <PopoverTrigger
+                      render={
+                        <InputGroupButton
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className={cn(
+                            "relative",
+                            sendTest.activeConversationId && "bg-muted"
+                          )}
+                          disabled={sendTest.disabled || testStatus !== "idle"}
+                          aria-label={
+                            testStatus === "starting"
+                              ? "Sending test preview"
+                              : testStatus === "stopping"
+                                ? "Stopping test preview"
+                                : sendTest.activeConversationId
+                                  ? `Preview active, ${Math.ceil(sendTest.remainingSeconds / 60)} minutes remaining`
+                                  : "Send test to Viber contact"
+                          }
+                          title="Send test to Viber contact"
+                        />
+                      }
+                    >
+                      {testStatus === "idle" ? (
+                        sendTest.activeConversationId ? (
+                          <Clock3Icon className="size-4" />
+                        ) : (
+                          <FlaskConicalIcon className="size-4" />
+                        )
+                      ) : (
+                        <Spinner />
+                      )}
+                    </PopoverTrigger>
+                    <PopoverContent side="top" align="end" className="w-72 p-0">
+                      <PopoverHeader className="p-3 pb-1">
+                        <PopoverTitle>Send test</PopoverTitle>
+                        <PopoverDescription>
+                          Test this saved draft with a Viber contact for 30
+                          minutes.
+                        </PopoverDescription>
+                      </PopoverHeader>
+                      {sendTest.activeConversationId ? (
+                        <div className="flex flex-col gap-3 p-3 pt-1">
+                          <div className="rounded-lg bg-muted p-3 text-foreground">
+                            <div className="flex items-center gap-2 text-xs font-medium">
+                              <Clock3Icon className="size-4 text-muted-foreground" />
+                              Preview active
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {activeTestConversation?.label ?? "Viber contact"}
+                              {" · "}
+                              {Math.ceil(sendTest.remainingSeconds / 60)}{" "}
+                              minutes left
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void handleStopTest()}
+                            disabled={
+                              sendTest.disabled || testStatus !== "idle"
+                            }
+                          >
+                            {testStatus === "stopping" ? <Spinner /> : null}
+                            Stop preview
+                          </Button>
+                        </div>
+                      ) : (
+                        <Command className="rounded-none bg-transparent p-0">
+                          <CommandInput placeholder="Search Viber conversations..." />
+                          <CommandList>
+                            <CommandEmpty>
+                              No Viber conversations yet.
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {sendTest.conversations.map((conversation) => (
+                                <CommandItem
+                                  key={conversation.id}
+                                  value={conversation.label}
+                                  keywords={[conversation.id]}
+                                  disabled={
+                                    sendTest.disabled || testStatus !== "idle"
+                                  }
+                                  onSelect={() =>
+                                    void handleStartTest(conversation.id)
+                                  }
+                                >
+                                  {conversation.label}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                ) : null}
+                <InputGroupButton
+                  type="submit"
+                  variant="default"
+                  size="icon-sm"
+                  disabled={!inputText.trim()}
+                  aria-label="Send message"
+                >
+                  <SendIcon className="size-4" />
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+          </Field>
         </form>
       </div>
     </div>

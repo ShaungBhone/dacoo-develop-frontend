@@ -1,8 +1,12 @@
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
-import { ViberMobilePreview } from "./viber-mobile-preview"
+import {
+  resolveViberCarouselAction,
+  safeViberPreviewUrl,
+  ViberMobilePreview,
+} from "./viber-mobile-preview"
 import type { ViberExperienceRevision } from "./viber-experience-api"
 
 function sampleRevision(): ViberExperienceRevision {
@@ -52,17 +56,25 @@ function sampleRevision(): ViberExperienceRevision {
 }
 
 describe("ViberMobilePreview", () => {
-  it("renders the authentic Viber purple header and bot identity", () => {
+  it("renders a neutral full-height automation preview header", () => {
     const markup = renderToStaticMarkup(
       createElement(ViberMobilePreview, {
         revision: sampleRevision(),
         locale: "en",
+        onClose: vi.fn(),
       })
     )
 
-    expect(markup).toContain("bg-[#7360F2]")
-    expect(markup).toContain("Viber Bot")
-    expect(markup).toContain("Online")
+    expect(markup).toContain("Automation preview")
+    expect(markup).toContain("Viber · EN")
+    expect(markup).toContain("h-full")
+    expect(markup).toContain('aria-label="Reset conversation"')
+    expect(markup).toContain('aria-label="Close automation preview"')
+    expect(markup).not.toContain("h-[620px]")
+    expect(markup).not.toContain("max-w-[380px]")
+    expect(markup).not.toContain("bg-[#7360F2]")
+    expect(markup).not.toContain("Online")
+    expect(markup).not.toContain("Today")
   })
 
   it("renders the welcome message inside the chat stream", () => {
@@ -74,7 +86,12 @@ describe("ViberMobilePreview", () => {
     )
 
     expect(markup).toContain("Hello from Viber Bot!")
-    expect(markup).toContain("Today")
+    expect(markup).toContain('data-slot="message-group"')
+    expect(markup).toContain('data-slot="message"')
+    expect(markup).toContain('data-slot="message-avatar"')
+    expect(markup).toContain('data-slot="message-header"')
+    expect(markup).toContain('data-slot="bubble"')
+    expect(markup).toContain('data-variant="outline"')
   })
 
   it("renders localized text for another locale", () => {
@@ -99,11 +116,12 @@ describe("ViberMobilePreview", () => {
 
     expect(markup).toContain("Support Team")
     expect(markup).toContain("Visit Website")
-    expect(markup).toContain("Bot Menu")
+    expect(markup).toContain("Menu actions")
+    expect(markup).toContain("Type message")
     expect(markup).toContain("background-color:#38B000")
   })
 
-  it("renders the Viber bottom input bar with placeholder", () => {
+  it("renders the Viber composer with the ReUI input group pattern", () => {
     const markup = renderToStaticMarkup(
       createElement(ViberMobilePreview, {
         revision: sampleRevision(),
@@ -112,6 +130,78 @@ describe("ViberMobilePreview", () => {
     )
 
     expect(markup).toContain("Type a message...")
+    expect(markup).toContain('data-slot="field"')
+    expect(markup).toContain('data-slot="input-group"')
+    expect(markup).toContain('data-slot="input-group-addon"')
+    expect(markup).toContain('data-slot="input-group-control"')
+    expect(markup).toContain('type="text"')
+    expect(markup).not.toContain("<textarea")
+    expect(markup).not.toContain('aria-label="Add attachment"')
+    expect(markup).not.toContain('aria-label="Insert sticker or emoji"')
+    expect(markup).not.toContain('aria-label="Voice message"')
+    expect(markup).toContain('aria-label="Send message"')
+    expect(markup).not.toContain("Send test to Viber contact")
+  })
+
+  it("renders a separate Send Test action without replacing local typing", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ViberMobilePreview, {
+        revision: sampleRevision(),
+        locale: "en",
+        sendTest: {
+          conversations: [{ id: "conversation-1", label: "Jane Doe" }],
+          activeConversationId: null,
+          remainingSeconds: 0,
+          disabled: false,
+          status: "idle",
+          onStart: vi.fn(async () => true),
+          onStop: vi.fn(async () => true),
+        },
+      })
+    )
+
+    expect(markup).toContain("Type a message...")
+    expect(markup).toContain('aria-label="Send test to Viber contact"')
+    expect(markup).toContain('aria-label="Send message"')
+  })
+
+  it("announces active and loading Send Test states from the composer", () => {
+    const activeMarkup = renderToStaticMarkup(
+      createElement(ViberMobilePreview, {
+        revision: sampleRevision(),
+        locale: "en",
+        sendTest: {
+          conversations: [{ id: "conversation-1", label: "Jane Doe" }],
+          activeConversationId: "conversation-1",
+          remainingSeconds: 299,
+          disabled: false,
+          status: "idle",
+          onStart: vi.fn(async () => true),
+          onStop: vi.fn(async () => true),
+        },
+      })
+    )
+    const loadingMarkup = renderToStaticMarkup(
+      createElement(ViberMobilePreview, {
+        revision: sampleRevision(),
+        locale: "en",
+        sendTest: {
+          conversations: [],
+          activeConversationId: null,
+          remainingSeconds: 0,
+          disabled: true,
+          status: "starting",
+          onStart: vi.fn(async () => true),
+          onStop: vi.fn(async () => true),
+        },
+      })
+    )
+
+    expect(activeMarkup).toContain(
+      'aria-label="Preview active, 5 minutes remaining"'
+    )
+    expect(loadingMarkup).toContain('aria-label="Sending test preview"')
+    expect(loadingMarkup).toContain("disabled")
   })
 
   it("renders carousel cards when an automation is focused", () => {
@@ -127,5 +217,57 @@ describe("ViberMobilePreview", () => {
     expect(markup).toContain("Consultation")
     expect(markup).toContain("Free 30-min call")
     expect(markup).toContain("Book Now")
+    expect(markup).toContain('data-slot="carousel"')
+    expect(markup).toContain('data-slot="carousel-item"')
+    expect(markup).toContain('data-slot="carousel-previous"')
+    expect(markup).toContain('data-slot="carousel-next"')
+    expect(markup).toContain('data-slot="card"')
+    expect(markup).toContain("basis-[70%]")
+    expect(markup).toContain('href="https://example.com/book"')
+    expect(markup).toContain('target="_blank"')
+    expect(markup).toContain('rel="noopener noreferrer"')
+  })
+})
+
+describe("Viber carousel preview actions", () => {
+  it("resolves reply actions against enabled automation triggers", () => {
+    const revision = sampleRevision()
+    const result = resolveViberCarouselAction(revision, "en", {
+      title: { en: "More services" },
+      description: null,
+      cta_label: { en: "Show cards" },
+      action_type: "reply",
+      action_value: { en: "cards" },
+    })
+
+    expect(result).toMatchObject({
+      userText: "Show cards",
+      responseText: "Check our services",
+      automation: revision.automations[0],
+    })
+  })
+
+  it("resolves handoff actions with the localized handoff response", () => {
+    const result = resolveViberCarouselAction(sampleRevision(), "my", {
+      title: { en: "Support" },
+      description: null,
+      cta_label: { en: "Contact support", my: "အကူအညီ" },
+      action_type: "handoff",
+      action_value: { en: "support" },
+    })
+
+    expect(result).toMatchObject({
+      userText: "အကူအညီ",
+      responseText: "ချိတ်ဆက်နေပါသည်",
+      isHandoff: true,
+    })
+  })
+
+  it("allows only safe HTTP URLs for external card actions", () => {
+    expect(safeViberPreviewUrl("https://example.com/book")).toBe(
+      "https://example.com/book"
+    )
+    expect(safeViberPreviewUrl("javascript:alert(1)")).toBeNull()
+    expect(safeViberPreviewUrl("not a url")).toBeNull()
   })
 })
