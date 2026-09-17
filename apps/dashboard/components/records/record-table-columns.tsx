@@ -43,6 +43,7 @@ import {
   createRecordCellEdit,
   formatRecordCellValue,
 } from "@/components/records/record-cell-editing"
+import { RecordValueDisplay } from "@/components/records/record-value-display"
 
 const headerClassName =
   "p-0 text-sm font-semibold tracking-wide text-muted-foreground whitespace-nowrap"
@@ -405,6 +406,15 @@ export function buildRecordColumns({
 
           if (!text || text === "—") {
             return <span className="text-sm text-muted-foreground/50">—</span>
+          }
+
+          if (attribute.type === "select" || attribute.type === "status") {
+            return (
+              <RecordValueDisplay
+                attribute={attribute}
+                value={row.original.values[attribute.slug]}
+              />
+            )
           }
 
           // Single-valued and free-form, so it is not split the way a domain

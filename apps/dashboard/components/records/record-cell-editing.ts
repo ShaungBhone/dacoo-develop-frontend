@@ -15,6 +15,10 @@ const READ_ONLY_ATTRIBUTE_SLUGS = new Set([
   "last-seen-at",
 ])
 
+/** Replaces the grid's hidden focused-cell chrome while a custom editor is open. */
+export const RECORD_CELL_EDITOR_OUTLINE_CLASS_NAME =
+  "outline-primary outline-1 outline-solid -outline-offset-1"
+
 /** Share the grid's editing state so its selection outline rests under custom editors. */
 export function beginRecordCellEditing(cellElement: HTMLElement): () => void {
   const viewport = cellElement.closest<HTMLElement>(

@@ -7,6 +7,7 @@ import {
   formatRecordCellValue,
   isRecordAttributeEditable,
   parseRecordCellValue,
+  RECORD_CELL_EDITOR_OUTLINE_CLASS_NAME,
 } from "./record-cell-editing"
 
 function attribute(
@@ -49,6 +50,13 @@ describe("record spreadsheet cell editing", () => {
     finishEditing()
 
     expect(attributes.has("data-cell-editing")).toBe(false)
+  })
+
+  it("provides one inset primary outline for every custom editor", () => {
+    expect(RECORD_CELL_EDITOR_OUTLINE_CLASS_NAME).toContain("outline-primary")
+    expect(RECORD_CELL_EDITOR_OUTLINE_CLASS_NAME).toContain("outline-1")
+    expect(RECORD_CELL_EDITOR_OUTLINE_CLASS_NAME).toContain("outline-solid")
+    expect(RECORD_CELL_EDITOR_OUTLINE_CLASS_NAME).toContain("-outline-offset-1")
   })
 
   it("parses numeric and checkbox values", () => {

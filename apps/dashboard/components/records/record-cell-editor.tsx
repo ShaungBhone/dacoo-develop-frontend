@@ -13,7 +13,10 @@ import {
   type RecordSummary,
 } from "@/components/records/api"
 import { AttributeInput } from "@/components/records/custom-fields"
-import { beginRecordCellEditing } from "@/components/records/record-cell-editing"
+import {
+  beginRecordCellEditing,
+  RECORD_CELL_EDITOR_OUTLINE_CLASS_NAME,
+} from "@/components/records/record-cell-editing"
 import { asRecordSummary } from "@/components/records/record-reference"
 import { RecordImageEditor } from "@/components/records/record-image-editor"
 import { selectOptionBadgeStyle } from "@/components/records/select-option-colors"
@@ -544,6 +547,7 @@ export function RecordCellEditor({
       aria-label={`Edit ${attribute.title}`}
       className={cn(
         "fixed z-50 bg-background [&_[data-slot=combobox-chips]]:border-0 [&_[data-slot=combobox-trigger]]:rounded-none [&_[data-slot=combobox-trigger]]:border-0 [&_[data-slot=input-group]]:border-0 [&_input]:rounded-none [&_input]:border-0 [&_input]:shadow-none [&_input]:ring-0",
+        RECORD_CELL_EDITOR_OUTLINE_CLASS_NAME,
         ["date", "location", "select", "status"].includes(attribute.type) &&
           "[&>div>button]:rounded-none [&>div>button]:border-0"
       )}
