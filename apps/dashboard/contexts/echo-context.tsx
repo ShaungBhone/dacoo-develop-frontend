@@ -5,6 +5,7 @@ import Echo from "laravel-echo"
 import Pusher from "pusher-js"
 import { useAuth } from "./auth-context"
 import { getCookie } from "@/lib/cookies"
+import { getReverbConfig } from "@/lib/reverb-config"
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://srv1713705.hstgr.cloud"
@@ -18,19 +19,6 @@ const EchoContext = createContext<EchoContextType>({
   echo: null,
   isConnected: false,
 })
-
-function getReverbConfig() {
-  const hostWithPort = API_BASE_URL.replace(/https?:\/\//, "")
-  const host = hostWithPort.split(":")[0]
-  const isHttps = API_BASE_URL.startsWith("https")
-
-  // If HTTPS, use standard wss port 443 (Herd/Valet reverse proxy)
-  // If HTTP, default to Reverb port 8080
-  const wsPort = isHttps ? 443 : 8080
-  const wssPort = isHttps ? 443 : 8080
-
-  return { host, wsPort, wssPort, isHttps }
-}
 
 export function EchoProvider({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth()
@@ -51,7 +39,11 @@ export function EchoProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    const { host, wsPort, wssPort, isHttps } = getReverbConfig()
+    const { host, wsPort, wssPort, isHttps } = getReverbConfig(API_BASE_URL, {
+      host: process.env.NEXT_PUBLIC_REVERB_HOST,
+      port: process.env.NEXT_PUBLIC_REVERB_PORT,
+      scheme: process.env.NEXT_PUBLIC_REVERB_SCHEME,
+    })
     const reverbKey = process.env.NEXT_PUBLIC_REVERB_APP_KEY ?? "maychat"
 
     const pusherClient = new Pusher(reverbKey, {

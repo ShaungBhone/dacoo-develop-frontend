@@ -1980,7 +1980,7 @@ function OverviewCard({
 
 function PromptMarkdown({ prompt }: { prompt: string }) {
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed">
+    <div className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed [&_ol]:list-outside [&_ol]:ps-6 [&_ul]:list-outside [&_ul]:ps-6">
       <Streamdown>{prompt || "*No prompt content entered yet.*"}</Streamdown>
     </div>
   )
