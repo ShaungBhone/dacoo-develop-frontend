@@ -13,17 +13,13 @@ import {
 
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { BillingView } from "@/components/billing-view"
-import { CurrencyView } from "@/components/settings/currency-view"
 import { IntegrationsView } from "@/components/settings/integrations-view"
 import {
   SETTINGS_TAB_GROUPS,
   SETTINGS_TABS,
   type SettingsTabSlug,
 } from "@/components/settings/settings-tabs"
-import { ObjectsView } from "@/components/settings/objects-view"
 import { ProfileView } from "@/components/settings/profile-view"
-import { RecordTemplatesView } from "@/components/settings/record-templates-view"
 import { SavedRepliesView } from "@/components/settings/saved-replies-view"
 import { SettingsStub } from "@/components/settings/settings-stub"
 import { TagsView } from "@/components/settings/tags-view"
@@ -44,7 +40,6 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
-import { TypographyH3, TypographyMuted } from "@/components/ui/typography"
 
 type SettingsTab = SettingsTabSlug
 
@@ -54,21 +49,6 @@ function isSettingsTab(value: string | null): value is SettingsTab {
 
 function getSettingsTabHref(tab: SettingsTab) {
   return tab === "general" ? "/settings" : `/settings?tab=${tab}`
-}
-
-function SectionHeading({
-  title,
-  description,
-}: {
-  title: string
-  description: string
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <TypographyH3>{title}</TypographyH3>
-      <TypographyMuted>{description}</TypographyMuted>
-    </div>
-  )
 }
 
 function SettingsNavigation({
@@ -128,30 +108,6 @@ function SettingsNavigation({
 }
 
 function SettingsContent({ activeTab }: { activeTab: SettingsTab }) {
-  if (activeTab === "currency") {
-    return (
-      <section className="flex flex-col gap-6">
-        <SectionHeading
-          title="Currency"
-          description="Choose how monetary amounts display across your organization."
-        />
-        <CurrencyView />
-      </section>
-    )
-  }
-
-  if (activeTab === "billing") {
-    return (
-      <section className="flex flex-col gap-6">
-        <SectionHeading
-          title="Billing & plan"
-          description="Review your subscription, invoices, and available plan changes."
-        />
-        <BillingView embedded />
-      </section>
-    )
-  }
-
   if (activeTab === "teammate") {
     return <TeamView />
   }
@@ -174,14 +130,6 @@ function SettingsContent({ activeTab }: { activeTab: SettingsTab }) {
 
   if (activeTab === "tags") {
     return <TagsView />
-  }
-
-  if (activeTab === "objects") {
-    return <ObjectsView />
-  }
-
-  if (activeTab === "templates") {
-    return <RecordTemplatesView />
   }
 
   const stubs = {
@@ -207,7 +155,7 @@ export function SettingsWorkspace() {
   const requestedTab = searchParams.get("tab")
   const activeTab: SettingsTab =
     requestedTab === "preferences"
-      ? "currency"
+      ? "general"
       : requestedTab === "users"
         ? "teammate"
         : requestedTab === "messenger"
@@ -218,7 +166,7 @@ export function SettingsWorkspace() {
 
   useEffect(() => {
     if (requestedTab === "preferences") {
-      router.replace("/settings?tab=currency", { scroll: false })
+      router.replace("/settings", { scroll: false })
     } else if (requestedTab === "users") {
       router.replace("/settings?tab=teammate", { scroll: false })
     } else if (requestedTab === "messenger") {

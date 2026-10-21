@@ -1,5 +1,5 @@
-import { DatasetsView } from "@/components/datasets-view"
+import { redirect } from "next/navigation"
 
-export default function DatasetsPage() {
-  return <DatasetsView />
+export default function RetiredPage() {
+  redirect("/home")
 }

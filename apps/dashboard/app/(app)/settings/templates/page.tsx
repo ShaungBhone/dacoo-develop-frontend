@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
 
-export default function SettingsTemplatesPage() {
-  redirect("/settings?tab=templates")
+export default function RetiredSettingsPage() {
+  redirect("/settings")
 }

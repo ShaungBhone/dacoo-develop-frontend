@@ -1,12 +1,14 @@
 "use client"
 
 import * as React from "react"
+import { useSearchParams } from "next/navigation"
 import { useActiveOrganization } from "@/hooks/use-active-organization"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/contexts/auth-context"
 import { useEcho } from "@/contexts/echo-context"
 import {
   fetchConversations,
+  fetchConversation,
   fetchInboxes,
   type Conversation,
   type InboxSummary,
@@ -31,6 +33,8 @@ import { MessageSquareDashedIcon } from "@/components/ui/icons"
 
 export function InboxView() {
   const organization = useActiveOrganization()
+  const searchParams = useSearchParams()
+  const linkedConversation = searchParams.get("conversation")
   const isMobile = useIsMobile()
   const { user } = useAuth()
   const { echo } = useEcho()
@@ -89,6 +93,27 @@ export function InboxView() {
       isCurrent = false
     }
   }, [organization])
+
+  React.useEffect(() => {
+    if (!organization || !linkedConversation) return
+    let current = true
+    void fetchConversation(organization.id, linkedConversation)
+      .then((conversation) => {
+        if (!current) return
+        setConversations((previous) => [
+          ...previous.filter((item) => item.id !== conversation.id),
+          conversation,
+        ])
+        setSelectedConversationId(conversation.id)
+        setActiveFilter({ type: "inbox", key: "all" })
+      })
+      .catch(() => {
+        if (current) setError("This conversation is no longer available.")
+      })
+    return () => {
+      current = false
+    }
+  }, [organization, linkedConversation])
 
   const visibleConversations = React.useMemo(() => {
     let list = conversations
@@ -316,8 +341,11 @@ export function InboxView() {
             <Empty className="max-w-md py-10">
               <EmptyHeader>
                 <EmptyMedia>
-                  <IconStack aria-hidden="true" className="text-primary h-24 w-22">
-                    <MessageSquareDashedIcon className="text-primary size-5" />
+                  <IconStack
+                    aria-hidden="true"
+                    className="h-24 w-22 text-primary"
+                  >
+                    <MessageSquareDashedIcon className="size-5 text-primary" />
                   </IconStack>
                 </EmptyMedia>
                 <EmptyTitle>No conversation selected</EmptyTitle>

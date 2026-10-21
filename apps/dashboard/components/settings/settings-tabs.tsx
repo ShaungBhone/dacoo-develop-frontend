@@ -1,19 +1,11 @@
 "use client"
 
 import {
-  Box as BoxIcon,
-  BellIcon,
   BlocksIcon,
-  Clock3Icon,
-  CircleDollarSignIcon,
-  CreditCardIcon,
-  LayoutTemplateIcon,
   MessageSquareTextIcon,
   SettingsIcon,
-  ShieldCheckIcon,
   ShieldIcon,
   TagIcon,
-  UserRoundCheckIcon,
   UserRoundIcon,
   UsersIcon,
 } from "@/components/ui/icons"
@@ -53,50 +45,24 @@ export const SETTINGS_TAB_GROUPS: readonly {
       { slug: "general", label: "General", icon: SettingsIcon },
       { slug: "teammate", label: "Teammates", icon: UsersIcon },
       { slug: "roles", label: "Roles", icon: ShieldIcon },
-      { slug: "office-hours", label: "Office hours", icon: Clock3Icon },
-      { slug: "security", label: "Security", icon: ShieldCheckIcon },
     ],
   },
   {
-    label: "Inbox",
+    label: "Messaging",
     tabs: [
-      { slug: "assignments", label: "Assignments", icon: UserRoundCheckIcon },
+      { slug: "integrations", label: "Connections", icon: BlocksIcon },
       {
         slug: "saved-replies",
         label: "Saved replies",
         icon: MessageSquareTextIcon,
       },
-    ],
-  },
-  {
-    label: "Channels",
-    tabs: [{ slug: "integrations", label: "Integration", icon: BlocksIcon }],
-  },
-  {
-    label: "Subscription",
-    tabs: [{ slug: "billing", label: "Billing", icon: CreditCardIcon }],
-  },
-  {
-    label: "Data",
-    tabs: [
-      { slug: "objects", label: "Objects", icon: BoxIcon },
-      { slug: "templates", label: "Templates", icon: LayoutTemplateIcon },
       { slug: "tags", label: "Tags", icon: TagIcon },
     ],
   },
   {
-    label: "Personal",
-    tabs: [
-      { slug: "profile", label: "Profile", icon: UserRoundIcon },
-      { slug: "notifications", label: "Notifications", icon: BellIcon },
-    ],
+    label: "Account",
+    tabs: [{ slug: "profile", label: "Profile", icon: UserRoundIcon }],
   },
 ]
-
-// Keep these query-string destinations available for existing deep links while
-// presenting the streamlined grouped navigation above.
-export const SETTINGS_TABS: readonly SettingsTabDefinition[] = [
-  ...SETTINGS_TAB_GROUPS.flatMap((group) => group.tabs),
-  { slug: "messenger", label: "Messenger", icon: BlocksIcon },
-  { slug: "currency", label: "Currency", icon: CircleDollarSignIcon },
-] as const
+export const SETTINGS_TABS: readonly SettingsTabDefinition[] =
+  SETTINGS_TAB_GROUPS.flatMap((group) => group.tabs)

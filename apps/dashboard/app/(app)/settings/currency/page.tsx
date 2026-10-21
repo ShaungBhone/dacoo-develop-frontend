@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
 
-export default function SettingsCurrencyPage() {
+export default function RetiredSettingsPage() {
   redirect("/settings")
 }

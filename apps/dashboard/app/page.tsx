@@ -1,5 +1,5 @@
-import { HomepagePromptFrame } from "@/components/examples/c-frame-10"
+import { redirect } from "next/navigation"
 
 export default function Page() {
-  return <HomepagePromptFrame />
+  redirect("/home")
 }

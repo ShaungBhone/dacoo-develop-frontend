@@ -1,10 +1,14 @@
-import { HomepagePromptFrame } from "@/components/examples/c-frame-10"
+import { Suspense } from "react"
+import { HomeView } from "@/components/home/home-view"
 
 export const metadata = {
   title: "Home",
-  description: "What do you want to create?",
+  description: "Your AI assistant, work board, and financial overview",
 }
-
 export default function HomePage() {
-  return <HomepagePromptFrame embedded />
+  return (
+    <Suspense>
+      <HomeView />
+    </Suspense>
+  )
 }

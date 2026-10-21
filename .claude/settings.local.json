@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr *)",
+      "Bash(git fetch *)",
+      "Bash(git ls-tree *)",
+      "Bash(xargs -n1 basename)",
+      "Bash(git worktree *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(bunx --bun shadcn@latest apply --preset b7CSeZGee --only theme)",
+      "Bash(npx tsc *)",
+      "Bash(bunx --bun shadcn@latest apply --help)",
+      "Bash(echo \"---exit: $?\")",
+      "Bash(npx eslint *)"
+    ]
+  }
+}

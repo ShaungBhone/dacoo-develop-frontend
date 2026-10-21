@@ -1,5 +1,5 @@
-import { DashboardView } from "@/components/analytics/dashboard-view"
+import { redirect } from "next/navigation"
 
-export default function Page() {
-  return <DashboardView />
+export default function RetiredPage() {
+  redirect("/home")
 }

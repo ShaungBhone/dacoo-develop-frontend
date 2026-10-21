@@ -1,5 +1,5 @@
-import { ActivityView } from "@/components/activity-view"
+import { redirect } from "next/navigation"
 
-export default function ActivityPage() {
-  return <ActivityView />
+export default function RetiredPage() {
+  redirect("/home")
 }

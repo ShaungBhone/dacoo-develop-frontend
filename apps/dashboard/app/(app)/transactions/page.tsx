@@ -1,10 +1,5 @@
-import { TransactionsView } from "@/components/transactions-view"
+import { redirect } from "next/navigation"
 
-export const metadata = {
-  title: "Transactions",
-  description: "View your organization's transaction history.",
-}
-
-export default function TransactionsPage() {
-  return <TransactionsView />
+export default function RetiredPage() {
+  redirect("/home")
 }

@@ -1,5 +1,5 @@
-import { BillingView } from "@/components/billing-view"
+import { redirect } from "next/navigation"
 
-export default function BillingPage() {
-  return <BillingView />
+export default function RetiredPage() {
+  redirect("/home")
 }

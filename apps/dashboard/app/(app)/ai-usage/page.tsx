@@ -1,10 +1,5 @@
-import { AiUsageView } from "@/components/ai-usage-view"
+import { redirect } from "next/navigation"
 
-export const metadata = {
-  title: "AI Usage",
-  description: "Manage AI credits and view usage by model.",
-}
-
-export default function AiUsagePage() {
-  return <AiUsageView />
+export default function RetiredPage() {
+  redirect("/home")
 }

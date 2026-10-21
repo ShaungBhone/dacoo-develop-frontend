@@ -1,16 +1,5 @@
-import * as React from "react"
-import { CollectionDetailView } from "@/components/records/collection-detail-view"
+import { redirect } from "next/navigation"
 
-export default async function CollectionPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>
-}) {
-  const { slug } = await params
-
-  return (
-    <React.Suspense fallback={null}>
-      <CollectionDetailView slug={slug} />
-    </React.Suspense>
-  )
+export default function RetiredPage() {
+  redirect("/home")
 }
