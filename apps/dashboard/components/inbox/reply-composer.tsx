@@ -49,6 +49,8 @@ interface ReplyComposerProps {
   ) => void | Promise<void>
   isLoading: boolean
   aiHandler: AiHandlerState
+  aiNotice?: string | null
+  aiReplyStatus?: "idle" | "responding"
   aiStateReason: string | null
   onTakeOver: () => void | Promise<void>
 }
@@ -221,6 +223,8 @@ export function ReplyComposer({
   onSubmit,
   isLoading,
   aiHandler,
+  aiNotice,
+  aiReplyStatus,
   aiStateReason,
   onTakeOver,
 }: ReplyComposerProps) {
@@ -229,19 +233,38 @@ export function ReplyComposer({
   const isInternalNote = messageType === "internal_note"
 
   if (aiHandler !== "human") {
-    const isInsufficientCredit = aiStateReason === "insufficient_credit"
+    const isInsufficientCredit =
+      aiStateReason === "insufficient_credit" ||
+      aiStateReason === "insufficient_balance"
     const label =
       aiHandler === "needs-attention"
         ? isInsufficientCredit
-          ? "Manion ran out of credits"
-          : "Manion needs you to take over"
-        : "Manion is responding…"
+          ? "Manion AI ran out of credits"
+          : aiStateReason === "configuration_error"
+            ? "Manion AI needs configuration — check your default model and provider settings"
+            : aiStateReason === "feature_unavailable"
+              ? "Manion AI is unavailable on your current plan"
+              : aiStateReason === "provider_policy"
+                ? "Manion AI is paused by this channel’s messaging policy"
+                : aiStateReason === "provider_error"
+                  ? "Manion AI could not reply — check the provider connection"
+                  : "Manion AI needs you to take over"
+        : aiReplyStatus === "responding"
+          ? "Manion AI is responding…"
+          : "Manion AI is enabled — waiting for the next message"
 
     return (
       <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border bg-background px-5 py-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <SparklesIcon className="size-4 text-purple-600 dark:text-purple-400" />
-          {label}
+          <div>
+            <p>{label}</p>
+            {aiHandler === "ai-active" ? (
+              <p className="text-xs">
+                Replies automatically to the next incoming message.
+              </p>
+            ) : null}
+          </div>
         </div>
         <Button onClick={() => onTakeOver()} size="sm" variant="outline">
           Take over
@@ -252,6 +275,11 @@ export function ReplyComposer({
 
   return (
     <div className="shrink-0 border-t border-border bg-background p-2">
+      {aiNotice ? (
+        <p role="status" className="px-3 py-2 text-xs text-muted-foreground">
+          {aiNotice}
+        </p>
+      ) : null}
       <PromptInputProvider>
         <PromptInput
           data-message-type={messageType}

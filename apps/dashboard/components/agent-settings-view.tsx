@@ -1001,12 +1001,6 @@ export function AgentSettingsView({
               {!isNew && (
                 <AgentStatusBadge status={activeDraft.status ?? agent.status} />
               )}
-              {!isNew && agent.isPrimary && (
-                <Badge className="h-5 shrink-0 gap-1 bg-primary px-1.5 text-[11px] font-medium text-primary-foreground">
-                  <SparklesIcon className="size-3" />
-                  Primary
-                </Badge>
-              )}
             </div>
             <p className="text-xs text-muted-foreground truncate whitespace-nowrap">
               {isNew
@@ -1129,30 +1123,6 @@ export function AgentSettingsView({
           )}
 
           <TooltipProvider>
-            {!isNew && !agent.isPrimary ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Make primary"
-                      onClick={() =>
-                        void patchAgent(
-                          { is_primary: true },
-                          "Primary agent updated"
-                        )
-                      }
-                    />
-                  }
-                >
-                  <SparklesIcon className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent>Make primary</TooltipContent>
-              </Tooltip>
-            ) : null}
-
             {!isNew ? (
               <Tooltip>
                 <TooltipTrigger
@@ -1334,6 +1304,7 @@ export function AgentSettingsView({
 
       {isNew && (
         <AgentTemplateModal
+          key={`${templateModalOpen}:${selectedTemplateId}`}
           open={templateModalOpen}
           onOpenChange={setTemplateModalOpen}
           activeTemplateId={selectedTemplateId}
@@ -1587,12 +1558,6 @@ function AgentTemplateModal({
   const [selectedId, setSelectedId] = React.useState<string | null>(
     activeTemplateId ?? "support"
   )
-
-  React.useEffect(() => {
-    if (open) {
-      setSelectedId(activeTemplateId ?? "support")
-    }
-  }, [open, activeTemplateId])
 
   const handleApply = () => {
     if (!selectedId || selectedId === "blank") {

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useActiveOrganization } from "@/hooks/use-active-organization"
 import { useWorkspaceAiSettings } from "@/contexts/workspace-ai-settings-context"
 import { ApiError } from "@/lib/api"
@@ -119,10 +120,7 @@ export function WorkspaceAiAssignment({
     setIsSaving(true)
     setError(null)
     try {
-      const next = await updateAiSettings(organizationId, {
-        ...values,
-        primary_agent_id: values.primary_agent_id ?? null,
-      })
+      const next = await updateAiSettings(organizationId, values)
       if (!mounted.current) return
       publish(next)
       setDraft(null)
@@ -162,9 +160,6 @@ export function WorkspaceAiAssignment({
       </div>
     )
 
-  const selectedAgent = available.agents.find(
-    (agent) => agent.id === values.primary_agent_id
-  )
   const selectedModel = available.models.find(
     (model) => model.id === values.default_model
   )
@@ -192,38 +187,29 @@ export function WorkspaceAiAssignment({
         />
       </Field>
       <Field>
-        <FieldLabel htmlFor="workspace-primary-agent">Primary agent</FieldLabel>
-        <Select
-          value={values.primary_agent_id ?? DEFAULT_OPTION}
-          onValueChange={(id: string) =>
-            change({ primary_agent_id: id === DEFAULT_OPTION ? null : id })
-          }
-          disabled={isSaving}
-        >
-          <SelectTrigger id="workspace-primary-agent" className="w-full">
-            <SelectValue>
-              {values.primary_agent_id
-                ? (selectedAgent?.name ?? "Selected agent is no longer active")
-                : "Manion AI"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={DEFAULT_OPTION}>Manion AI</SelectItem>
-            {values.primary_agent_id && !selectedAgent ? (
-              <SelectItem value={values.primary_agent_id} disabled>
-                Selected agent is no longer active
-              </SelectItem>
-            ) : null}
-            {available.agents.map((agent) => (
-              <SelectItem key={agent.id} value={agent.id}>
-                {agent.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <FieldLabel>Active abilities</FieldLabel>
         <FieldDescription>
-          Choose an active agent, or use the default Manion AI assistant.
+          Manion AI uses instructions, guidance, and knowledge from your active
+          agents. Draft and inactive agents do not contribute abilities.
         </FieldDescription>
+        {available.agents.length > 0 ? (
+          <ul className="list-inside list-disc text-sm">
+            {available.agents.map((agent) => (
+              <li key={agent.id}>{agent.name}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No active abilities. Manion AI uses your workspace instructions and
+            knowledge.
+          </p>
+        )}
+        <Link
+          href="/agents"
+          className="text-sm text-primary underline underline-offset-4"
+        >
+          Manage abilities in Agents
+        </Link>
       </Field>
       <Field>
         <FieldLabel htmlFor="workspace-default-model">Default model</FieldLabel>

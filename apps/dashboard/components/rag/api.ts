@@ -438,7 +438,6 @@ export async function deleteAgent(
 }
 
 export type AiSettings = {
-  primary_agent_id?: string | null
   auto_reply: boolean
   auto_assign: boolean
   follow_up_enabled?: boolean

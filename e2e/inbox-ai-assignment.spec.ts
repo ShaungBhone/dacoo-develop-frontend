@@ -8,7 +8,10 @@ const conversation = {
   status: "open",
   priority: "normal",
   unread_count: 0,
-  ai_handler: "ai-active",
+  ai_handler: "human",
+  workspace_ai_eligible: true,
+  workspace_ai_block_reason: null,
+  ai_reply_status: "idle",
   assignee: null,
   customer: {
     id: "contact",
@@ -35,7 +38,6 @@ test("workspace settings control AI and Inbox keeps human assignment", async ({
   let settings = {
     auto_assign: false,
     auto_reply: false,
-    primary_agent_id: null as string | null,
     default_model: null as string | null,
     follow_up_enabled: true,
   }
@@ -65,7 +67,15 @@ test("workspace settings control AI and Inbox keeps human assignment", async ({
         ],
       }
     } else if (path.endsWith("/conversations")) {
-      json = { data: [conversation] }
+      json = {
+        data: [
+          {
+            ...conversation,
+            workspace_ai_eligible: !takenOver,
+            workspace_ai_block_reason: takenOver ? "human_takeover" : null,
+          },
+        ],
+      }
     } else if (path.endsWith("/conversations/conversation")) {
       if (route.request().method() === "PATCH") {
         expect(route.request().postDataJSON()).toEqual({
@@ -76,7 +86,9 @@ test("workspace settings control AI and Inbox keeps human assignment", async ({
       json = {
         data: {
           ...conversation,
-          ai_handler: takenOver ? "human" : "ai-active",
+          ai_handler: "human",
+          workspace_ai_eligible: !takenOver,
+          workspace_ai_block_reason: takenOver ? "human_takeover" : null,
         },
       }
     } else if (path.endsWith("/inboxes")) {
@@ -139,10 +151,15 @@ test("workspace settings control AI and Inbox keeps human assignment", async ({
     page.getByRole("switch", { name: "Enable Manion AI" })
   ).toBeVisible()
   await page.getByRole("switch", { name: "Enable Manion AI" }).click()
-  await page.getByRole("combobox", { name: "Primary agent" }).click()
-  await page
-    .getByRole("option", { name: "Customer support", exact: true })
-    .click()
+  await expect(
+    page.getByRole("combobox", { name: "Primary agent" })
+  ).toHaveCount(0)
+  await expect(
+    page.getByText("Customer support", { exact: true })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("link", { name: "Manage abilities in Agents" })
+  ).toHaveAttribute("href", "/agents")
   await page.getByRole("combobox", { name: "Default model" }).click()
   await page.getByRole("option", { name: "Support Model", exact: true }).click()
   expect(saved).toBe(false)
@@ -153,7 +170,6 @@ test("workspace settings control AI and Inbox keeps human assignment", async ({
   expect(settings).toMatchObject({
     auto_assign: true,
     auto_reply: true,
-    primary_agent_id: "support-agent",
     default_model: "provider/support",
     follow_up_enabled: true,
   })
@@ -163,11 +179,23 @@ test("workspace settings control AI and Inbox keeps human assignment", async ({
   })
   await page.goto(`${dashboardUrl}/inbox`)
   await page.getByRole("button", { name: /Assignment Test Customer/ }).click()
+  await expect(
+    page.getByText("Manion AI is enabled — waiting for the next message", {
+      exact: true,
+    })
+  ).toBeVisible()
+  await page.screenshot({
+    path: `/tmp/dacoo-manion-ready-${testInfo.project.name}.png`,
+    animations: "disabled",
+  })
   await page.getByRole("button", { name: "Take over", exact: true }).click()
   await expect(
     page.getByRole("button", { name: "Take over", exact: true })
   ).toHaveCount(0)
   expect(takenOver).toBe(true)
+  await expect(page.getByRole("status")).toContainText(
+    "Your team took over this conversation"
+  )
   await page.getByRole("button", { name: "More conversation options" }).click()
   await expect(
     page.getByRole("menuitem", { name: "Assign to AI" })

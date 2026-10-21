@@ -50,7 +50,6 @@ const shared = vi.hoisted(() => ({
     auto_assign: false,
     auto_reply: false,
     default_model: null as string | null,
-    primary_agent_id: null as string | null,
     follow_up_enabled: false,
   },
   isLoading: false,
@@ -126,7 +125,6 @@ const settings = {
   auto_assign: false,
   auto_reply: false,
   default_model: null,
-  primary_agent_id: null,
   follow_up_enabled: false,
 }
 beforeEach(() => {
@@ -158,13 +156,6 @@ function toggle(tree: ReactNode, enabled: boolean) {
   )!
   ;(element.props.onCheckedChange as (value: boolean) => void)(enabled)
 }
-function choose(tree: ReactNode, old: string, next: string) {
-  const element = elements(tree).find(
-    (item) =>
-      item.props.value === old && typeof item.props.onValueChange === "function"
-  )!
-  ;(element.props.onValueChange as (value: string) => void)(next)
-}
 function scope() {
   return render(() =>
     WorkspaceAiSettingsScope({ organizationId: 1, children: null })
@@ -178,21 +169,25 @@ describe("workspace assignment settings", () => {
     expect(text(tree)).toContain("Manion AI")
     expect(text(tree)).not.toContain("Workspace AI")
     expect(text(tree)).toContain("Workspace default model")
-    expect(text(tree)).not.toContain("Draft")
+    expect(
+      elements(tree)
+        .filter((item) => item.type === "li")
+        .map(text)
+    ).toEqual(["Support"])
+    expect(text(tree)).toContain("Active abilities")
+    expect(text(tree)).toContain("Support")
+    expect(text(tree)).not.toContain("Primary agent")
     toggle(tree, true)
     expect(updateAiSettings).not.toHaveBeenCalled()
-    let updated = render(() => WorkspaceAiAssignment({ organizationId: 1 }))
-    choose(updated, "workspace-default", "active")
-    updated = render(() => WorkspaceAiAssignment({ organizationId: 1 }))
+    const updated = render(() => WorkspaceAiAssignment({ organizationId: 1 }))
     const selects = elements(updated).filter(
       (item) => typeof item.props.onValueChange === "function"
     )
-    ;(selects[1].props.onValueChange as (value: string) => void)("model")
+    ;(selects[0].props.onValueChange as (value: string) => void)("model")
     vi.mocked(updateAiSettings).mockResolvedValue({
       ...settings,
       auto_assign: true,
       auto_reply: true,
-      primary_agent_id: "active",
       default_model: "model",
     })
     ;(
@@ -206,11 +201,10 @@ describe("workspace assignment settings", () => {
       ...settings,
       auto_assign: true,
       auto_reply: true,
-      primary_agent_id: "active",
       default_model: "model",
     })
     expect(shared.publish).toHaveBeenCalledWith(
-      expect.objectContaining({ primary_agent_id: "active" })
+      expect.objectContaining({ default_model: "model" })
     )
   })
   it("preserves drafts on save failure and shows a retryable options error", async () => {
@@ -239,7 +233,7 @@ describe("workspace assignment settings", () => {
     await settle()
     expect(
       text(render(() => WorkspaceAiAssignment({ organizationId: 1 })))
-    ).toContain("Primary agent")
+    ).toContain("Active abilities")
   })
   it("preserves unknown model IDs when the catalog is unavailable", async () => {
     shared.settings.default_model = "unknown/model"

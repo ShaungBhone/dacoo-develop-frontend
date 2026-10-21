@@ -141,12 +141,46 @@ export type Conversation = {
   priority: ConversationPriority
   unreadCount: number
   aiHandler: AiHandlerState
+  workspaceAiEligible?: boolean
+  aiReplyStatus?: "idle" | "responding"
+  workspaceAiBlockReason?: string | null
   aiStateReason: string | null
   aiStateHistory: AiStateHistoryEntry[]
   assignee: ConversationParticipant | null
   customer: ConversationCustomer
   inbox: { id: number | string; name: string; provider: string }
   tags: ConversationTag[]
+}
+
+export function effectiveAiHandler(
+  conversation: Conversation,
+  workspaceAiEnabled: boolean
+): AiHandlerState {
+  if (
+    !workspaceAiEnabled ||
+    conversation.assignee ||
+    conversation.status === "spam"
+  )
+    return "human"
+  if (conversation.aiHandler === "needs-attention") return "needs-attention"
+  if (conversation.workspaceAiBlockReason) return "human"
+  if (conversation.workspaceAiEligible === true) return "ai-active"
+  return conversation.aiHandler
+}
+
+export function workspaceAiOwnershipNotice(
+  conversation: Conversation
+): string | null {
+  switch (conversation.workspaceAiBlockReason) {
+    case "assigned_to_human":
+      return "Manion AI is enabled. This conversation is assigned to a teammate."
+    case "human_takeover":
+      return "Manion AI is enabled. Your team took over this conversation."
+    case "spam":
+      return "Manion AI does not reply to spam conversations."
+    default:
+      return null
+  }
 }
 
 type RawAiStateHistoryEntry = {
@@ -165,6 +199,9 @@ type RawConversation = {
   priority: string
   unread_count: number
   ai_handler: string
+  workspace_ai_eligible?: boolean
+  ai_reply_status?: "idle" | "responding"
+  workspace_ai_block_reason?: string | null
   ai_state_history?: RawAiStateHistoryEntry[]
   assignee: {
     id: number | string
@@ -221,9 +258,7 @@ function mapAiStateHistory(raw: RawAiStateHistoryEntry): AiStateHistoryEntry {
 function mapConversation(raw: RawConversation): Conversation {
   const aiHandler = raw.ai_handler as AiHandlerState
   const aiStateHistory = (raw.ai_state_history ?? []).map(mapAiStateHistory)
-  const currentStateEntry = [...aiStateHistory]
-    .reverse()
-    .find((entry) => entry.to === aiHandler)
+  const currentStateEntry = aiStateHistory.find((entry) => entry.to === aiHandler)
 
   return {
     id: raw.id,
@@ -233,6 +268,9 @@ function mapConversation(raw: RawConversation): Conversation {
     priority: raw.priority as ConversationPriority,
     unreadCount: raw.unread_count,
     aiHandler,
+    workspaceAiEligible: raw.workspace_ai_eligible,
+    aiReplyStatus: raw.ai_reply_status ?? "idle",
+    workspaceAiBlockReason: raw.workspace_ai_block_reason ?? null,
     aiStateReason: currentStateEntry?.reason ?? null,
     aiStateHistory,
     assignee: raw.assignee

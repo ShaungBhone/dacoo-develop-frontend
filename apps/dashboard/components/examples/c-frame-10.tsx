@@ -192,7 +192,6 @@ function OrganizationHomePrompt({
   const agents = agentState.agents
   const selectedAgent =
     agents.find((agent) => agent.id === agentId) ??
-    agents.find((agent) => agent.isPrimary) ??
     agents[0] ??
     null
 

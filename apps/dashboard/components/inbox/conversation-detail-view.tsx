@@ -14,6 +14,8 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
 import {
+  effectiveAiHandler,
+  workspaceAiOwnershipNotice,
   type Conversation,
   type ConversationMessage,
   type MessageAttachment,
@@ -74,10 +76,10 @@ export function ConversationDetailView({
     null
   )
   const { settings: workspaceAiSettings } = useWorkspaceAiSettings()
-  const effectiveAiHandler =
-    workspaceAiSettings?.auto_assign && workspaceAiSettings?.auto_reply && !conversation.assignee
-      ? conversation.aiHandler
-      : "human"
+  const workspaceAiEnabled = !!(
+    workspaceAiSettings?.auto_assign && workspaceAiSettings?.auto_reply
+  )
+  const aiHandler = effectiveAiHandler(conversation, workspaceAiEnabled)
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
   const isLoadingOlderMessagesRef = React.useRef(false)
   const shouldScrollToBottomRef = React.useRef(true)
@@ -470,7 +472,7 @@ export function ConversationDetailView({
           isLoadingOlder={isLoadingOlderMessages}
           contactAvatarUrl={conversation.customer.avatarUrl}
           contactName={conversation.customer.displayName}
-          aiHandler={effectiveAiHandler}
+          aiHandler={aiHandler}
           aiStateReason={conversation.aiStateReason}
           aiStateHistory={conversation.aiStateHistory}
           onAssignToMe={handleAssignToMe}
@@ -482,9 +484,11 @@ export function ConversationDetailView({
         <p className="px-5 pt-2 text-xs text-destructive">{sendError}</p>
       ) : null}
       <ReplyComposer
+        aiReplyStatus={conversation.aiReplyStatus}
+        aiNotice={workspaceAiEnabled ? workspaceAiOwnershipNotice(conversation) : null}
         onSubmit={handleReply}
         isLoading={isSending}
-        aiHandler={effectiveAiHandler}
+        aiHandler={aiHandler}
         aiStateReason={conversation.aiStateReason}
         onTakeOver={handleTakeOver}
       />

@@ -336,9 +336,17 @@ export function AgentsView() {
   }, [organization])
 
   React.useEffect(() => {
-    loadAgents()
-    loadDatasets()
-    loadTeams()
+    let current = true
+    void Promise.resolve().then(() => {
+      if (current) {
+        void loadAgents()
+        void loadDatasets()
+        void loadTeams()
+      }
+    })
+    return () => {
+      current = false
+    }
   }, [loadAgents, loadDatasets, loadTeams])
 
   React.useEffect(() => {
@@ -391,9 +399,6 @@ export function AgentsView() {
       try {
         const updated = await updateAgent(organization.id, agent.id, {
           status,
-          ...(status === "active" && !agents.some((item) => item.isPrimary)
-            ? { is_primary: true }
-            : {}),
         })
         setAgents((current) =>
           current.map((item) => (item.id === agent.id ? updated : item))
@@ -408,7 +413,7 @@ export function AgentsView() {
         setIsChangingStatus(false)
       }
     },
-    [organization, isChangingStatus, agents, loadAgents]
+    [organization, isChangingStatus, loadAgents]
   )
 
   const columns = React.useMemo(

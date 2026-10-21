@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useEcho } from "@/contexts/echo-context"
 import { useWorkspaceAiSettings } from "@/contexts/workspace-ai-settings-context"
 import {
+  effectiveAiHandler,
   fetchConversations,
   fetchInboxes,
   type Conversation,
@@ -35,19 +36,19 @@ export function InboxView() {
   const isMobile = useIsMobile()
   const { user } = useAuth()
   const { echo } = useEcho()
-  const [storedConversations, setConversations] = React.useState<Conversation[]>(
-    []
-  )
+  const [storedConversations, setConversations] = React.useState<
+    Conversation[]
+  >([])
   const { settings: workspaceAiSettings } = useWorkspaceAiSettings()
   const workspaceAiEnabled = !!(
     workspaceAiSettings?.auto_assign && workspaceAiSettings?.auto_reply
   )
   const conversations = React.useMemo(
-    () => storedConversations.map((conversation) =>
-      workspaceAiEnabled && !conversation.assignee
-        ? conversation
-        : { ...conversation, aiHandler: "human" as const }
-    ),
+    () =>
+      storedConversations.map((conversation) => ({
+        ...conversation,
+        aiHandler: effectiveAiHandler(conversation, workspaceAiEnabled),
+      })),
     [storedConversations, workspaceAiEnabled]
   )
   const [inboxes, setInboxes] = React.useState<InboxSummary[]>([])
@@ -331,7 +332,10 @@ export function InboxView() {
             <Empty className="max-w-md py-10">
               <EmptyHeader>
                 <EmptyMedia>
-                  <IconStack aria-hidden="true" className="text-primary h-24 w-22">
+                  <IconStack
+                    aria-hidden="true"
+                    className="text-primary h-24 w-22"
+                  >
                     <MessageSquareDashedIcon className="text-primary size-5" />
                   </IconStack>
                 </EmptyMedia>

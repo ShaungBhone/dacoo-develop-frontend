@@ -107,16 +107,15 @@ beforeEach(() => {
 })
 
 describe("agent activation menu", () => {
-  it("activates the first draft agent as primary and updates the row", async () => {
+  it("activates an ability without selecting a primary agent", async () => {
     const table = await load([draft])
-    const active = { ...draft, status: "active" as const, isPrimary: true }
+    const active = { ...draft, status: "active" as const, isPrimary: false }
     vi.mocked(updateAgent).mockResolvedValue(active)
     vi.mocked(fetchAgents).mockResolvedValue([active])
     await (statusAction(table, draft).props.onClick as () => Promise<void>)()
 
     expect(updateAgent).toHaveBeenCalledWith(1, draft.id, {
       status: "active",
-      is_primary: true,
     })
     expect(render().props.data).toEqual([active])
     expect(text(statusAction(render(), active))).toBe("Deactivate agent")
