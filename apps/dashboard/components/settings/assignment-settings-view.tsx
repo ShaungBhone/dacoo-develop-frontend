@@ -175,7 +175,7 @@ export function WorkspaceAiAssignment({
       <Field orientation="horizontal" className="rounded-lg border p-4">
         <FieldContent>
           <FieldLabel htmlFor="workspace-ai-assignment">
-            Enable workspace AI
+            Enable Manion AI
           </FieldLabel>
           <FieldDescription>
             Applies to future inbound messages in eligible new and existing
@@ -204,11 +204,11 @@ export function WorkspaceAiAssignment({
             <SelectValue>
               {values.primary_agent_id
                 ? (selectedAgent?.name ?? "Selected agent is no longer active")
-                : "Workspace AI"}
+                : "Manion AI"}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={DEFAULT_OPTION}>Workspace AI</SelectItem>
+            <SelectItem value={DEFAULT_OPTION}>Manion AI</SelectItem>
             {values.primary_agent_id && !selectedAgent ? (
               <SelectItem value={values.primary_agent_id} disabled>
                 Selected agent is no longer active
@@ -222,7 +222,7 @@ export function WorkspaceAiAssignment({
           </SelectContent>
         </Select>
         <FieldDescription>
-          Choose an active agent, or use the default workspace assistant.
+          Choose an active agent, or use the default Manion AI assistant.
         </FieldDescription>
       </Field>
       <Field>

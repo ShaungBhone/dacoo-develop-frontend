@@ -56,7 +56,7 @@ export function WorkspaceAiSettingsScope({
     } catch {
       if (mounted.current && version === requestVersion.current) {
         setSettings(null)
-        setError("Couldn't load workspace AI settings. Please try again.")
+        setError("Couldn't load Manion AI settings. Please try again.")
       }
     } finally {
       if (mounted.current && version === requestVersion.current)

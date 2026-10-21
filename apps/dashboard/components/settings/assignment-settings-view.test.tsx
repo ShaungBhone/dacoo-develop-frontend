@@ -174,8 +174,9 @@ function scope() {
 describe("workspace assignment settings", () => {
   it("shows active agents and model defaults and waits for explicit Save", async () => {
     const tree = await load()
-    expect(text(tree)).toContain("Enable workspace AI")
-    expect(text(tree)).toContain("Workspace AI")
+    expect(text(tree)).toContain("Enable Manion AI")
+    expect(text(tree)).toContain("Manion AI")
+    expect(text(tree)).not.toContain("Workspace AI")
     expect(text(tree)).toContain("Workspace default model")
     expect(text(tree)).not.toContain("Draft")
     toggle(tree, true)

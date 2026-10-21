@@ -136,9 +136,9 @@ test("workspace settings control AI and Inbox keeps human assignment", async ({
   })
   await page.goto(`${dashboardUrl}/settings?tab=assignments`)
   await expect(
-    page.getByRole("switch", { name: "Enable workspace AI" })
+    page.getByRole("switch", { name: "Enable Manion AI" })
   ).toBeVisible()
-  await page.getByRole("switch", { name: "Enable workspace AI" }).click()
+  await page.getByRole("switch", { name: "Enable Manion AI" }).click()
   await page.getByRole("combobox", { name: "Primary agent" }).click()
   await page
     .getByRole("option", { name: "Customer support", exact: true })
@@ -194,7 +194,7 @@ test("workspace settings control AI and Inbox keeps human assignment", async ({
   await memberDialog.getByRole("button", { name: "Close", exact: true }).click()
   takenOver = false
   await page.goto(`${dashboardUrl}/settings?tab=assignments`)
-  await page.getByRole("switch", { name: "Enable workspace AI" }).click()
+  await page.getByRole("switch", { name: "Enable Manion AI" }).click()
   await page.getByRole("button", { name: "Save", exact: true }).click()
   await expect(
     page.getByRole("button", { name: "Save", exact: true })
