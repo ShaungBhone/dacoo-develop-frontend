@@ -8,12 +8,12 @@ import {
   Clock3Icon,
   PanelLeftIcon,
   ShieldCheckIcon,
-  UserRoundCheckIcon,
 } from "@/components/ui/icons"
 
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { BillingView } from "@/components/billing-view"
+import { AssignmentSettingsView } from "@/components/settings/assignment-settings-view"
 import { CurrencyView } from "@/components/settings/currency-view"
 import { IntegrationsView } from "@/components/settings/integrations-view"
 import {
@@ -128,6 +128,10 @@ function SettingsNavigation({
 }
 
 function SettingsContent({ activeTab }: { activeTab: SettingsTab }) {
+  if (activeTab === "assignments") {
+    return <AssignmentSettingsView />
+  }
+
   if (activeTab === "currency") {
     return (
       <section className="flex flex-col gap-6">
@@ -187,7 +191,6 @@ function SettingsContent({ activeTab }: { activeTab: SettingsTab }) {
   const stubs = {
     "office-hours": { icon: Clock3Icon, title: "Office hours" },
     security: { icon: ShieldCheckIcon, title: "Security" },
-    assignments: { icon: UserRoundCheckIcon, title: "Assignments" },
     notifications: { icon: BellIcon, title: "Notifications" },
   } as const
 

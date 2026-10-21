@@ -440,6 +440,8 @@ export async function deleteAgent(
 export type AiSettings = {
   auto_reply: boolean
   auto_assign: boolean
+  follow_up_enabled?: boolean
+  follow_up_after_days?: number
   default_model: string | null
 }
 
