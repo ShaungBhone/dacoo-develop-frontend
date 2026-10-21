@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 import {
   BotIcon,
   PlusIcon,
@@ -102,7 +103,9 @@ type AgentStatus = "active" | "inactive" | "draft"
 export const buildAgentColumns = (
   onDelete: (agent: Agent) => void,
   teams: AgentTeamSummary[],
-  onMoveToTeam: (agent: Agent, teamId: string | null) => void
+  onMoveToTeam: (agent: Agent, teamId: string | null) => void,
+  onChangeStatus: (agent: Agent, status: "active" | "inactive") => void,
+  isChangingStatus = false
 ): ColumnDef<DataGridFeatures, Agent>[] => [
   {
     id: "name",
@@ -199,6 +202,18 @@ export const buildAgentColumns = (
               <MoreVerticalIcon />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-36">
+              <DropdownMenuItem
+                disabled={isChangingStatus}
+                onClick={() =>
+                  onChangeStatus(
+                    agent,
+                    agent.status === "active" ? "inactive" : "active"
+                  )
+                }
+              >
+                {agent.status === "active" ? <XIcon /> : <CheckCircle2Icon />}
+                {agent.status === "active" ? "Deactivate agent" : "Activate agent"}
+              </DropdownMenuItem>
               <DropdownMenuItem render={<Link href={`/agents/${agent.id}`} />}>
                 <SettingsIcon />
                 Manage agent
@@ -261,6 +276,7 @@ export function AgentsView() {
   const [isLoading, setIsLoading] = React.useState(true)
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all")
   const [deleteTarget, setDeleteTarget] = React.useState<Agent | null>(null)
+  const [isChangingStatus, setIsChangingStatus] = React.useState(false)
 
   const [teams, setTeams] = React.useState<AgentTeamSummary[]>([])
   // Seeded from the URL rather than applied in an effect, so a deep link filters
@@ -368,10 +384,41 @@ export function AgentsView() {
     [organization]
   )
 
+  const handleChangeStatus = React.useCallback(
+    async (agent: Agent, status: "active" | "inactive") => {
+      if (!organization || isChangingStatus) return
+      setIsChangingStatus(true)
+      try {
+        const updated = await updateAgent(organization.id, agent.id, {
+          status,
+          ...(status === "active" && !agents.some((item) => item.isPrimary)
+            ? { is_primary: true }
+            : {}),
+        })
+        setAgents((current) =>
+          current.map((item) => (item.id === agent.id ? updated : item))
+        )
+        await loadAgents()
+        toast.success(status === "active" ? "Agent activated" : "Agent deactivated")
+      } catch {
+        toast.error("Couldn't update agent status. Please try again.")
+      } finally {
+        setIsChangingStatus(false)
+      }
+    },
+    [organization, isChangingStatus, agents, loadAgents]
+  )
+
   const columns = React.useMemo(
     () =>
-      buildAgentColumns(setDeleteTarget, teams, handleMoveToTeam),
-    [teams, handleMoveToTeam]
+      buildAgentColumns(
+        setDeleteTarget,
+        teams,
+        handleMoveToTeam,
+        handleChangeStatus,
+        isChangingStatus
+      ),
+    [teams, handleMoveToTeam, handleChangeStatus, isChangingStatus]
   )
 
   async function handleDelete() {
@@ -512,7 +559,6 @@ export function AgentsView() {
             initialPageSize={10}
             columnsLabel="View"
             getRowId={(agent) => agent.id}
-            onRowClick={(agent) => router.push(`/agents/${agent.id}`)}
             emptyMessage={
               <Empty className="mx-auto my-8 max-w-sm border-dashed border-border bg-card/40 p-6">
                 <EmptyHeader>
@@ -581,7 +627,7 @@ export function AgentsView() {
             toolbarClassName="shrink-0 border-b border-border px-4 py-2"
             containerClassName="min-h-0 flex-1 overflow-auto relative"
             headerClassName="bg-muted"
-            rowClassName="bg-background hover:bg-muted/40 cursor-pointer"
+            rowClassName="bg-background hover:bg-muted/40"
             footerClassName="shrink-0 border-t border-border px-4 py-2"
           />
         )}
