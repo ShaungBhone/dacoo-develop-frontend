@@ -24,12 +24,14 @@ function sampleRevision(): ViberExperienceRevision {
         action_type: "handoff",
         action_value: { en: "support", my: "support" },
         background_color: "#7360F2",
+        icon: "landmark",
       },
       {
         label: { en: "Visit Website", my: "ဝက်ဘ်ဆိုက်" },
         action_type: "open_url",
         action_value: { en: "https://example.com", my: "https://example.com" },
         background_color: "#38B000",
+        icon: null,
       },
     ],
     automations: [
@@ -119,6 +121,7 @@ describe("ViberMobilePreview", () => {
     expect(markup).toContain("Menu actions")
     expect(markup).toContain("Type message")
     expect(markup).toContain("background-color:#38B000")
+    expect(markup).toContain("lucide-landmark")
   })
 
   it("renders the Viber composer with the ReUI input group pattern", () => {

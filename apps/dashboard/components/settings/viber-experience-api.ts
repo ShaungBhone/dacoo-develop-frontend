@@ -3,6 +3,16 @@ import { apiFetch } from "@/lib/api"
 export type ViberLocale = "en" | "my"
 export type LocalizedText = Partial<Record<ViberLocale, string>>
 export type ViberMenuAction = "reply" | "open_url" | "share-phone" | "handoff"
+export type ViberMenuIcon =
+  | "wallet-cards"
+  | "landmark"
+  | "users"
+  | "mail"
+  | "map-pin"
+  | "clock"
+  | "chart"
+  | "bell"
+  | "briefcase"
 export type ViberCardAction = "reply" | "open_url" | "handoff"
 export type ViberResponseType = "text" | "menu" | "carousel" | "handoff"
 
@@ -35,6 +45,7 @@ export type ViberMenuButton = {
   action_type: ViberMenuAction
   action_value: LocalizedText | null
   background_color: string
+  icon: ViberMenuIcon | null
   sort_order?: number
 }
 
@@ -142,7 +153,11 @@ export async function startViberPreview(
 }> {
   return (
     await apiFetch<{
-      data: { expires_at: string; conversation_id: string; locale: ViberLocale }
+      data: {
+        expires_at: string
+        conversation_id: string
+        locale: ViberLocale
+      }
     }>(`${endpoint(organizationId)}/preview`, {
       method: "POST",
       body: { conversation_id: String(conversationId), locale },

@@ -8,6 +8,7 @@ import {
   VIBER_SECTION_LABELS,
   viberRevisionSummary,
 } from "./viber-experience-editor"
+import { VIBER_MENU_ICON_OPTIONS } from "./viber-menu-icons"
 import type { ViberExperienceRevision } from "./viber-experience-api"
 
 function revision(): ViberExperienceRevision {
@@ -25,6 +26,7 @@ function revision(): ViberExperienceRevision {
         action_type: "handoff",
         action_value: { en: "agent", my: "ဝန်ထမ်း" },
         background_color: "#7360F2",
+        icon: "landmark",
       },
     ],
     automations: [
@@ -133,5 +135,21 @@ describe("Viber carousel image requirements", () => {
       maxBytes: 512_000,
       acceptedTypes: ["image/jpeg", "image/png"],
     })
+  })
+})
+
+describe("Viber menu icons", () => {
+  it("offers only the curated built-in icon set", () => {
+    expect(VIBER_MENU_ICON_OPTIONS.map((option) => option.value)).toEqual([
+      "wallet-cards",
+      "landmark",
+      "users",
+      "mail",
+      "map-pin",
+      "clock",
+      "chart",
+      "bell",
+      "briefcase",
+    ])
   })
 })

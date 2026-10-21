@@ -10,6 +10,7 @@ import {
   type ViberLocale,
   type ViberMenuButton,
 } from "./viber-experience-api"
+import { viberMenuIconOption } from "./viber-menu-icons"
 import {
   BotIcon,
   Clock3Icon,
@@ -664,6 +665,7 @@ export function ViberMobilePreview({
             {revision.menu_buttons.map((button, index) => {
               const label = localized(button.label, locale) || "Button"
               const customBg = button.background_color
+              const MenuIcon = viberMenuIconOption(button.icon)?.icon
 
               return (
                 <Button
@@ -678,6 +680,7 @@ export function ViberMobilePreview({
                     customBg && "border-transparent text-white hover:opacity-90"
                   )}
                 >
+                  {MenuIcon ? <MenuIcon className="size-4 shrink-0" /> : null}
                   <span className="truncate">{label}</span>
                 </Button>
               )

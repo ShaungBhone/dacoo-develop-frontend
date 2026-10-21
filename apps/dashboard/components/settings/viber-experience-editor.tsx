@@ -112,8 +112,13 @@ import {
   type ViberExperienceRevision,
   type ViberLocale,
   type ViberMenuAction,
+  type ViberMenuIcon,
   type ViberResponseType,
 } from "@/components/settings/viber-experience-api"
+import {
+  VIBER_MENU_ICON_OPTIONS,
+  viberMenuIconOption,
+} from "@/components/settings/viber-menu-icons"
 
 const LOCALES: { value: ViberLocale; label: string }[] = [
   { value: "en", label: "English" },
@@ -1199,6 +1204,7 @@ function MenuSection({
                           action_type: "reply",
                           action_value: { [locale]: "new button" },
                           background_color: "#7360F2",
+                          icon: null,
                         },
                       ],
                     }
@@ -1229,8 +1235,72 @@ function MenuSection({
           {draft.menu_buttons.map((button, index) => (
             <FieldGroup
               key={button.id ?? index}
-              className="grid gap-2 rounded-xl border p-3 sm:grid-cols-[1fr_150px_1fr_auto]"
+              className="grid gap-2 rounded-xl border p-3 sm:grid-cols-[150px_1fr_150px_1fr_auto]"
             >
+              <Field>
+                <FieldLabel className="sr-only">Button icon</FieldLabel>
+                <Select
+                  items={[
+                    { value: "none", label: "No icon" },
+                    ...VIBER_MENU_ICON_OPTIONS,
+                  ]}
+                  value={button.icon ?? "none"}
+                  disabled={!canManage}
+                  onValueChange={(value) =>
+                    setDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            menu_buttons: current.menu_buttons.map(
+                              (item, itemIndex) =>
+                                itemIndex === index
+                                  ? {
+                                      ...item,
+                                      icon:
+                                        value === "none"
+                                          ? null
+                                          : (value as ViberMenuIcon),
+                                    }
+                                  : item
+                            ),
+                          }
+                        : current
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(() => {
+                        const option = viberMenuIconOption(button.icon)
+                        if (!option) return "No icon"
+                        const Icon = option.icon
+
+                        return (
+                          <>
+                            <Icon />
+                            {option.label}
+                          </>
+                        )
+                      })()}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="none">No icon</SelectItem>
+                      {VIBER_MENU_ICON_OPTIONS.map((option) => {
+                        const Icon = option.icon
+
+                        return (
+                          <SelectItem key={option.value} value={option.value}>
+                            <Icon />
+                            {option.label}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
               <Field>
                 <FieldLabel className="sr-only">Button label</FieldLabel>
                 <Input
