@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { ChevronRightIcon, SparklesIcon } from "@/components/ui/icons"
 import { ApiError } from "@/lib/api"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -20,7 +19,6 @@ import {
   type Conversation,
   type OrganizationMember,
 } from "./api"
-
 function initials(name: string): string {
   return name
     .split(" ")
@@ -38,7 +36,6 @@ interface AssignMemberDialogProps {
   preselectedUserId: number | string | null
   members: OrganizationMember[] | null
   onAssigned: (conversation: Conversation) => void
-  onAssignAi: () => void
 }
 
 export function AssignMemberDialog({
@@ -50,20 +47,19 @@ export function AssignMemberDialog({
   preselectedUserId,
   members,
   onAssigned,
-  onAssignAi,
 }: AssignMemberDialogProps) {
   const [selectedId, setSelectedId] = React.useState<number | string | null>(
-    assignedToUserId
+    preselectedUserId ?? assignedToUserId
   )
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-
+  const isMountedRef = React.useRef(true)
   React.useEffect(() => {
-    if (!open) return
-
-    setSelectedId(preselectedUserId ?? assignedToUserId)
-    setError(null)
-  }, [open, assignedToUserId, preselectedUserId])
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const hasChanged = selectedId !== assignedToUserId
 
@@ -80,48 +76,30 @@ export function AssignMemberDialog({
           assigned_to_user_id: selectedId,
         }
       )
+      if (!isMountedRef.current) return
       onAssigned(conversation)
       onOpenChange(false)
     } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : "Something went wrong. Please try again."
-      )
+      if (isMountedRef.current)
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : "Something went wrong. Please try again."
+        )
     } finally {
-      setIsSubmitting(false)
+      if (isMountedRef.current) setIsSubmitting(false)
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Assign conversation</DialogTitle>
           <DialogDescription>
-            Hand this conversation to Manion or a team member.
+            Hand this conversation to a team member.
           </DialogDescription>
         </DialogHeader>
-
-        <button
-          className="flex items-center gap-3 rounded-xl border border-purple-500/25 bg-purple-500/5 p-3 text-left transition-colors hover:bg-purple-500/10"
-          onClick={() => {
-            onOpenChange(false)
-            onAssignAi()
-          }}
-          type="button"
-        >
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-background">
-            <SparklesIcon className="size-4.5 text-purple-600 dark:text-purple-400" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">Manion</p>
-            <p className="truncate text-xs text-muted-foreground">
-              Handles replies and escalates when needed
-            </p>
-          </div>
-          <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
-        </button>
 
         {members === null ? (
           <div className="flex flex-col gap-2">

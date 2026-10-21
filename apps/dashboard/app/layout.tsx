@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   },
 }
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'})
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
@@ -56,6 +56,7 @@ const burmeseATest = localFont({
 import { AuthProvider } from "@/contexts/auth-context"
 import { EchoProvider } from "@/contexts/echo-context"
 import { CurrencySettingsProvider } from "@/contexts/currency-settings-context"
+import { WorkspaceAiSettingsProvider } from "@/contexts/workspace-ai-settings-context"
 import { OrganizationProvider } from "@/contexts/organization-context"
 import {
   BurmeseFontProvider,
@@ -93,10 +94,12 @@ export default async function RootLayout({
               <AuthProvider>
                 <EchoProvider>
                   <OrganizationProvider>
-                    <CurrencySettingsProvider>
-                      <TooltipProvider>{children}</TooltipProvider>
-                      <Toaster position="top-center" />
-                    </CurrencySettingsProvider>
+                    <WorkspaceAiSettingsProvider>
+                      <CurrencySettingsProvider>
+                        <TooltipProvider>{children}</TooltipProvider>
+                        <Toaster position="top-center" />
+                      </CurrencySettingsProvider>
+                    </WorkspaceAiSettingsProvider>
                   </OrganizationProvider>
                 </EchoProvider>
               </AuthProvider>

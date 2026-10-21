@@ -5,6 +5,7 @@ import { useActiveOrganization } from "@/hooks/use-active-organization"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/contexts/auth-context"
 import { useEcho } from "@/contexts/echo-context"
+import { useWorkspaceAiSettings } from "@/contexts/workspace-ai-settings-context"
 import {
   fetchConversations,
   fetchInboxes,
@@ -34,7 +35,21 @@ export function InboxView() {
   const isMobile = useIsMobile()
   const { user } = useAuth()
   const { echo } = useEcho()
-  const [conversations, setConversations] = React.useState<Conversation[]>([])
+  const [storedConversations, setConversations] = React.useState<Conversation[]>(
+    []
+  )
+  const { settings: workspaceAiSettings } = useWorkspaceAiSettings()
+  const workspaceAiEnabled = !!(
+    workspaceAiSettings?.auto_assign && workspaceAiSettings?.auto_reply
+  )
+  const conversations = React.useMemo(
+    () => storedConversations.map((conversation) =>
+      workspaceAiEnabled && !conversation.assignee
+        ? conversation
+        : { ...conversation, aiHandler: "human" as const }
+    ),
+    [storedConversations, workspaceAiEnabled]
+  )
   const [inboxes, setInboxes] = React.useState<InboxSummary[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)

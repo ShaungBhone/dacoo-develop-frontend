@@ -311,7 +311,7 @@ export async function generateOpeningMessage(
 }
 
 export async function fetchAgents(
-  organizationId: number
+  organizationId: number | string
 ): Promise<AgentSummary[]> {
   const res = await apiFetch<{ data: AgentSummary[] }>(
     `/api/v1/organizations/${organizationId}/agents`
@@ -438,6 +438,7 @@ export async function deleteAgent(
 }
 
 export type AiSettings = {
+  primary_agent_id?: string | null
   auto_reply: boolean
   auto_assign: boolean
   follow_up_enabled?: boolean
@@ -446,7 +447,7 @@ export type AiSettings = {
 }
 
 export async function fetchAiSettings(
-  organizationId: number
+  organizationId: number | string
 ): Promise<AiSettings> {
   const res = await apiFetch<{ data: AiSettings }>(
     `/api/v1/organizations/${organizationId}/ai-settings`

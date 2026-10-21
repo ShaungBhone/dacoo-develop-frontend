@@ -15,7 +15,6 @@ import {
   PanelRightIcon,
   SearchIcon,
   ShieldAlertIcon,
-  SparklesIcon,
   TagIcon,
   Trash2Icon,
   UserRoundIcon,
@@ -63,7 +62,6 @@ import { getTagColor } from "@/lib/tag-colors"
 import { cn } from "@/lib/utils"
 import {
   attachConversationTags,
-  createOrganizationTag,
   deleteConversation,
   detachConversationTag,
   fetchOrganizationTags,
@@ -145,7 +143,6 @@ interface ConversationDetailHeaderProps {
   isPanelOpen: boolean
   onTogglePanel: () => void
   onAssignClick: (memberId?: number | string) => void
-  onAssignAiClick?: () => void
   onConversationUpdate?: (conversation: Conversation) => void
   onConversationDeleted?: (conversationId: number | string) => void
   onBack?: () => void
@@ -154,11 +151,9 @@ interface ConversationDetailHeaderProps {
 export function ConversationDetailHeader({
   conversation,
   organizationId,
-  members,
   isPanelOpen,
   onTogglePanel,
   onAssignClick,
-  onAssignAiClick,
   onConversationUpdate,
   onConversationDeleted,
   onBack,
@@ -178,8 +173,6 @@ export function ConversationDetailHeader({
 
   React.useEffect(() => {
     if (isTagDialogOpen) {
-      setStagedTagIds(conversation.tags.map((t) => t.id))
-      setTagSearchQuery("")
       if (organizationId) {
         fetchOrganizationTags(organizationId)
           .then(setOrgTags)
@@ -438,7 +431,16 @@ export function ConversationDetailHeader({
         </DropdownMenu>
 
         {/* Tag Manager Dialog */}
-        <Dialog open={isTagDialogOpen} onOpenChange={setIsTagDialogOpen}>
+        <Dialog
+          open={isTagDialogOpen}
+          onOpenChange={(open) => {
+            if (open) {
+              setStagedTagIds(conversation.tags.map((tag) => tag.id))
+              setTagSearchQuery("")
+            }
+            setIsTagDialogOpen(open)
+          }}
+        >
           <DialogTrigger
             render={
               <Button
@@ -587,12 +589,7 @@ export function ConversationDetailHeader({
                 <UserRoundIcon />
                 <span>Assign team member</span>
               </DropdownMenuItem>
-              {onAssignAiClick ? (
-                <DropdownMenuItem onClick={onAssignAiClick}>
-                  <SparklesIcon />
-                  <span>Assign to AI</span>
-                </DropdownMenuItem>
-              ) : null}
+
             </DropdownMenuGroup>
 
             <DropdownMenuSeparator />

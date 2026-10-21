@@ -27,8 +27,8 @@ import {
   sendConversationMessage,
   updateConversation,
 } from "./api"
-import { AssignAiDialog } from "./assign-ai-dialog"
 import { AssignMemberDialog } from "./assign-member-dialog"
+import { useWorkspaceAiSettings } from "@/contexts/workspace-ai-settings-context"
 import { ConversationMessages } from "./conversation-messages"
 import { type MessageType, ReplyComposer } from "./reply-composer"
 import { InboxCustomerPanel } from "./inbox-customer-panel"
@@ -73,7 +73,11 @@ export function ConversationDetailView({
   const [members, setMembers] = React.useState<OrganizationMember[] | null>(
     null
   )
-  const [isAssignAiOpen, setIsAssignAiOpen] = React.useState(false)
+  const { settings: workspaceAiSettings } = useWorkspaceAiSettings()
+  const effectiveAiHandler =
+    workspaceAiSettings?.auto_assign && workspaceAiSettings?.auto_reply && !conversation.assignee
+      ? conversation.aiHandler
+      : "human"
   const scrollContainerRef = React.useRef<HTMLDivElement>(null)
   const isLoadingOlderMessagesRef = React.useRef(false)
   const shouldScrollToBottomRef = React.useRef(true)
@@ -431,7 +435,6 @@ export function ConversationDetailView({
         isPanelOpen={isMobile ? isDetailsSheetOpen : isPanelOpen}
         onTogglePanel={togglePanel}
         onAssignClick={openAssignMemberDialog}
-        onAssignAiClick={() => setIsAssignAiOpen(true)}
         onConversationUpdate={onConversationUpdate}
         onConversationDeleted={onConversationDeleted}
         onBack={onBack}
@@ -467,7 +470,7 @@ export function ConversationDetailView({
           isLoadingOlder={isLoadingOlderMessages}
           contactAvatarUrl={conversation.customer.avatarUrl}
           contactName={conversation.customer.displayName}
-          aiHandler={conversation.aiHandler}
+          aiHandler={effectiveAiHandler}
           aiStateReason={conversation.aiStateReason}
           aiStateHistory={conversation.aiStateHistory}
           onAssignToMe={handleAssignToMe}
@@ -481,7 +484,7 @@ export function ConversationDetailView({
       <ReplyComposer
         onSubmit={handleReply}
         isLoading={isSending}
-        aiHandler={conversation.aiHandler}
+        aiHandler={effectiveAiHandler}
         aiStateReason={conversation.aiStateReason}
         onTakeOver={handleTakeOver}
       />
@@ -534,6 +537,7 @@ export function ConversationDetailView({
       )}
 
       <AssignMemberDialog
+        key={`${organizationId}:${conversation.id}:${isAssignMemberOpen}`}
         open={isAssignMemberOpen}
         onOpenChange={(open) => {
           setIsAssignMemberOpen(open)
@@ -545,15 +549,6 @@ export function ConversationDetailView({
         preselectedUserId={preselectedAssigneeId}
         members={members}
         onAssigned={onConversationUpdate}
-        onAssignAi={() => setIsAssignAiOpen(true)}
-      />
-
-      <AssignAiDialog
-        open={isAssignAiOpen}
-        onOpenChange={setIsAssignAiOpen}
-        organizationId={organizationId}
-        conversationId={conversation.id}
-        onActivated={onConversationUpdate}
       />
     </div>
   )

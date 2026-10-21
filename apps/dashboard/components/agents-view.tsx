@@ -399,7 +399,9 @@ export function AgentsView() {
           current.map((item) => (item.id === agent.id ? updated : item))
         )
         await loadAgents()
-        toast.success(status === "active" ? "Agent activated" : "Agent deactivated")
+        toast.success(
+          status === "active" ? "Agent activated" : "Agent deactivated"
+        )
       } catch {
         toast.error("Couldn't update agent status. Please try again.")
       } finally {
