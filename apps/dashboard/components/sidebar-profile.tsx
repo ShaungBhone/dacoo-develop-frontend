@@ -94,7 +94,7 @@ export function SidebarProfile() {
                 organizations.map((organization) => (
                   <DropdownMenuItem
                     key={organization.id}
-                    onSelect={() => setActiveOrganizationId(organization.id)}
+                    onClick={() => setActiveOrganizationId(organization.id)}
                   >
                     <Avatar className="relative size-4 rounded-md">
                       {organization.logo_url && (

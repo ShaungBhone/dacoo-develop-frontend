@@ -2,7 +2,8 @@ import { HomepagePromptFrame } from "@/components/examples/c-frame-10"
 
 export const metadata = {
   title: "Home",
-  description: "What do you want to create?",
+  description:
+    "Start with Dacoo: customer conversations, follow-ups, and next steps.",
 }
 
 export default function HomePage() {
