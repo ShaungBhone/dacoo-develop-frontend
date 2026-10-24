@@ -445,6 +445,19 @@ export type ConversationMessagePage = {
   nextCursor: string | null
 }
 
+export function mergeConversationMessage(
+  current: ConversationMessage[],
+  message: ConversationMessage
+): ConversationMessage[] {
+  if (current.some((existing) => existing.id === message.id)) {
+    return current.map((existing) =>
+      existing.id === message.id ? message : existing
+    )
+  }
+
+  return [...current, message]
+}
+
 type RawMessageAttachment = {
   id: number | string
   filename: string

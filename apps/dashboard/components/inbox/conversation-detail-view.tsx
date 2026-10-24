@@ -26,6 +26,7 @@ import {
   fetchConversations,
   fetchOrganizationMembers,
   markConversationRead,
+  mergeConversationMessage,
   sendConversationMessage,
   updateConversation,
 } from "./api"
@@ -289,7 +290,7 @@ export function ConversationDetailView({
     channel.listen(
       "MessageSent",
       (event: {
-        message_id: number
+        message_id: number | string
         direction: "inbound" | "outbound"
         body: string
         status: string
@@ -372,7 +373,7 @@ export function ConversationDetailView({
               files: files.length > 0 ? files : undefined,
             })
       shouldScrollToBottomRef.current = true
-      setMessages((current) => [...current, message])
+      setMessages((current) => mergeConversationMessage(current, message))
       if (type === "reply") onMessageSent(conversation.id, message.body)
     } catch {
       setSendError("Couldn't send that message. Please try again.")

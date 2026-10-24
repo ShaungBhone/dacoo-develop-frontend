@@ -8,10 +8,40 @@ vi.mock("@/lib/api", () => ({
 
 import {
   fetchConversationMessages,
+  mergeConversationMessage,
   effectiveAiHandler,
   workspaceAiOwnershipNotice,
   type Conversation,
+  type ConversationMessage,
 } from "./api"
+
+describe("mergeConversationMessage", () => {
+  const message: ConversationMessage = {
+    id: "sqid-message",
+    direction: "outbound",
+    sender: null,
+    body: "Sent once",
+    status: "sent",
+    type: "text",
+    attachments: [],
+    metadata: {},
+    sentAt: "2026-10-25T01:58:00Z",
+  }
+
+  it("replaces a broadcast received before the send response with the full message", () => {
+    const response = {
+      ...message,
+      sender: { id: "sqid-user", name: "Scale Owner", avatarUrl: null },
+    }
+    expect(mergeConversationMessage([message], response)).toEqual([response])
+  })
+
+  it("keeps repeated responses unique without collapsing distinct messages with the same body", () => {
+    const second = { ...message, id: "another-sqid" }
+    const current = mergeConversationMessage([message], second)
+    expect(mergeConversationMessage(current, second)).toEqual([message, second])
+  })
+})
 
 describe("fetchConversationMessages", () => {
   beforeEach(() => {
