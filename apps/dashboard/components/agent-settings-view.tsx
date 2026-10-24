@@ -43,7 +43,12 @@ import {
   AgentSettingsNav,
   type AgentSection,
 } from "@/components/agents/agent-settings-nav"
-import { AGENTS } from "@/components/rag/data"
+import {
+  AGENTS,
+  AGENT_CATEGORIES,
+  type Agent,
+  type AgentTemplateCategory,
+} from "@/components/rag/data"
 import {
   createAgent,
   createAgentGuidance,
@@ -222,23 +227,24 @@ type AgentDraft = {
 
 const DEFAULT_NEW_AGENT: AgentSummary = {
   id: "new",
-  name: "New Agent",
-  label: "New Agent",
-  description: "AI Agent optimized for customer support.",
-  system:
-    "You are a friendly customer support agent. Use the context below to answer the user's question clearly and empathetically. If you cannot resolve it, suggest escalating to a human agent.",
+  name: "Customer Support Specialist",
+  label: "Customer Support Specialist",
+  description: "Empathetic, accurate first-line support grounded strictly in your knowledge base.",
+  system: AGENTS[0]?.system ?? "",
   isPrimary: false,
   persona: {
-    identity:
-      "You are a friendly customer support agent. Use the context below to answer the user's question clearly and empathetically. If you cannot resolve it, suggest escalating to a human agent.",
+    identity: AGENTS[0]?.system ?? "",
     tone: "friendly",
     language: "match_customer",
   },
   messages: {
     firstMessageMode: "assistant-speaks-first",
-    greeting: "Hi! How can I help you today?",
+    greeting:
+      AGENTS[0]?.greeting ??
+      "Hi there! 👋 Thanks for reaching out to us. How can I help you today? If you have an account email or reference number, please feel free to share it!",
     fallback:
-      "I'm sorry, I don't have enough information to answer that question. Let me connect you with a team member.",
+      AGENTS[0]?.fallback ??
+      "I want to make sure you get the most accurate answer. Let me connect you with one of our support specialists who can look into this for you right away.",
   },
   activeGuidanceCount: 0,
   guidance: [],
@@ -354,6 +360,9 @@ export function AgentSettingsView({
   const isNew = agentId === "new"
   const [selectedTemplateId, setSelectedTemplateId] = React.useState<string | null>("support")
   const [templateModalOpen, setTemplateModalOpen] = React.useState(isNew)
+  const [pendingGuidances, setPendingGuidances] = React.useState<
+    { title: string; instruction: string }[]
+  >([])
   const organization = useActiveOrganization()
   const { isLoading: authLoading } = useAuth()
   const [agent, setAgent] = React.useState<AgentSummary | null>(null)
@@ -452,8 +461,22 @@ export function AgentSettingsView({
             label: initName,
             description: initDesc,
             system: initPrompt,
+            persona: {
+              ...DEFAULT_NEW_AGENT.persona,
+              identity: initPrompt,
+              tone: tmpl.tone ?? "friendly",
+              language: tmpl.language ?? "match_customer",
+            },
+            messages: {
+              ...DEFAULT_NEW_AGENT.messages,
+              greeting: tmpl.greeting ?? DEFAULT_NEW_AGENT.messages.greeting,
+              fallback: tmpl.fallback ?? DEFAULT_NEW_AGENT.messages.fallback,
+              firstMessageMode: tmpl.firstMessageMode ?? DEFAULT_NEW_AGENT.messages.firstMessageMode,
+            },
             datasetIds: initialDatasetId ? [initialDatasetId] : [],
           }
+          setSelectedTemplateId(tmpl.id)
+          setPendingGuidances(tmpl.suggestedGuidances ?? [])
           setAgent(initialAgent)
           setDraft(toDraft(initialAgent))
         })
@@ -541,9 +564,13 @@ export function AgentSettingsView({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = React.useState(false)
 
   const handleSelectTemplate = React.useCallback(
-    (tmpl: (typeof AGENTS)[number] | "blank") => {
+    (
+      tmpl: (typeof AGENTS)[number] | "blank",
+      importGuidances: boolean = true
+    ) => {
       if (tmpl === "blank") {
         setSelectedTemplateId(null)
+        setPendingGuidances([])
         setDraft((current) =>
           current
             ? {
@@ -564,6 +591,7 @@ export function AgentSettingsView({
                 system: "",
                 persona: {
                   ...current.persona,
+                  identity: "",
                   tone: "friendly",
                 },
               }
@@ -591,10 +619,11 @@ export function AgentSettingsView({
         ? `${tmpl.system}\n\nInstructions:\n- Answer queries strictly using the retrieved context from the dataset: "${ds.name}".\n- Be factual and do not make up facts outside the provided knowledge.`
         : tmpl.system
 
-      let newTone: Tone = "friendly"
-      if (tmpl.id === "analyst" || tmpl.id === "compliance") newTone = "professional"
-      else if (tmpl.id === "concise") newTone = "concise"
-      else if (tmpl.id === "support") newTone = "friendly"
+      const newTone: Tone = tmpl.tone ?? "friendly"
+      const newLanguage: Language = tmpl.language ?? "match_customer"
+      const newGreeting = tmpl.greeting ?? DEFAULT_NEW_AGENT.messages.greeting
+      const newFallback = tmpl.fallback ?? DEFAULT_NEW_AGENT.messages.fallback
+      const newFirstMessageMode = tmpl.firstMessageMode ?? DEFAULT_NEW_AGENT.messages.firstMessageMode
 
       setDraft((current) =>
         current
@@ -603,6 +632,10 @@ export function AgentSettingsView({
               name: newName,
               identity: newPrompt,
               tone: newTone,
+              language: newLanguage,
+              greeting: newGreeting,
+              fallback: newFallback,
+              firstMessageMode: newFirstMessageMode,
             }
           : current
       )
@@ -616,17 +649,47 @@ export function AgentSettingsView({
               system: newPrompt,
               persona: {
                 ...current.persona,
+                identity: newPrompt,
                 tone: newTone,
+                language: newLanguage,
+              },
+              messages: {
+                ...current.messages,
+                greeting: newGreeting,
+                fallback: newFallback,
+                firstMessageMode: newFirstMessageMode,
               },
             }
           : current
       )
+
+      if (importGuidances && tmpl.suggestedGuidances?.length) {
+        if (isNew) {
+          setPendingGuidances(tmpl.suggestedGuidances)
+        } else if (organization && agent) {
+          const rulesToCreate = tmpl.suggestedGuidances
+          void Promise.all(
+            rulesToCreate.map((g) =>
+              createAgentGuidance(organization.id, agent.id, {
+                title: g.title,
+                instruction: g.instruction,
+                is_active: true,
+              })
+            )
+          )
+            .then(() => reload())
+            .catch(() => {
+              toast.error("Failed to add some guidance rules")
+            })
+        }
+      }
+
       setTemplateModalOpen(false)
       toast.success(`${tmpl.label} template applied`, {
-        description: "Configured persona, system prompt, and guidelines.",
+        description: `Configured persona, ${newTone} tone, and messaging.`,
       })
     },
-    [datasets, draft?.datasetIds, initialDatasetId]
+    [datasets, draft?.datasetIds, initialDatasetId, isNew, organization, agent, reload]
   )
 
   async function handleCreateAgent() {
@@ -658,6 +721,20 @@ export function AgentSettingsView({
         agent_team_id:
           activeDraft.teamId === NO_TEAM ? null : activeDraft.teamId,
       })
+
+      if (pendingGuidances.length > 0) {
+        for (const rule of pendingGuidances) {
+          try {
+            await createAgentGuidance(organization.id, created.id, {
+              title: rule.title,
+              instruction: rule.instruction,
+              is_active: true,
+            })
+          } catch {
+            // best-effort
+          }
+        }
+      }
 
       toast.success("Agent created successfully")
       router.replace(`/agents/${created.id}`)
@@ -868,6 +945,7 @@ export function AgentSettingsView({
         <MessagesCard draft={activeDraft} onChange={updateDraft} />
         <GuidanceCard
           guidance={agent.guidance}
+          pendingGuidances={pendingGuidances}
           isNew={isNew}
           onAdd={() => (isNew ? void handleCreateAgent() : setGuidanceEditor("new"))}
           onEdit={setGuidanceEditor}
@@ -892,6 +970,7 @@ export function AgentSettingsView({
     ) : section === "guidance" ? (
       <GuidanceCard
         guidance={agent.guidance}
+        pendingGuidances={pendingGuidances}
         isNew={isNew}
         onAdd={() => (isNew ? void handleCreateAgent() : setGuidanceEditor("new"))}
         onEdit={setGuidanceEditor}
@@ -1302,15 +1381,13 @@ export function AgentSettingsView({
         onConfirm={handleDeleteAgent}
       />
 
-      {isNew && (
-        <AgentTemplateModal
-          key={`${templateModalOpen}:${selectedTemplateId}`}
-          open={templateModalOpen}
-          onOpenChange={setTemplateModalOpen}
-          activeTemplateId={selectedTemplateId}
-          onApplyTemplate={handleSelectTemplate}
-        />
-      )}
+      <AgentTemplateModal
+        key={`${templateModalOpen}:${selectedTemplateId}`}
+        open={templateModalOpen}
+        onOpenChange={setTemplateModalOpen}
+        activeTemplateId={selectedTemplateId}
+        onApplyTemplate={handleSelectTemplate}
+      />
     </div>
   )
 }
@@ -1553,86 +1630,319 @@ function AgentTemplateModal({
   open: boolean
   onOpenChange: (open: boolean) => void
   activeTemplateId: string | null
-  onApplyTemplate: (template: (typeof AGENTS)[number] | "blank") => void
+  onApplyTemplate: (
+    template: (typeof AGENTS)[number] | "blank",
+    importGuidances?: boolean
+  ) => void
 }) {
   const [selectedId, setSelectedId] = React.useState<string | null>(
     activeTemplateId ?? "support"
   )
+  const [selectedCategory, setSelectedCategory] = React.useState<
+    AgentTemplateCategory | "all"
+  >("all")
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [importGuidances, setImportGuidances] = React.useState(true)
+
+  const filteredTemplates = React.useMemo(() => {
+    return AGENTS.filter((tmpl) => {
+      const matchesCategory =
+        selectedCategory === "all" || tmpl.category === selectedCategory
+      if (!matchesCategory) return false
+
+      if (!searchQuery.trim()) return true
+      const q = searchQuery.toLowerCase()
+      return (
+        tmpl.label.toLowerCase().includes(q) ||
+        tmpl.description.toLowerCase().includes(q) ||
+        tmpl.badge?.toLowerCase().includes(q) ||
+        tmpl.category?.toLowerCase().includes(q)
+      )
+    })
+  }, [selectedCategory, searchQuery])
+
+  const selectedTemplate = React.useMemo(() => {
+    if (!selectedId || selectedId === "blank") return null
+    return AGENTS.find((a) => a.id === selectedId) ?? null
+  }, [selectedId])
 
   const handleApply = () => {
     if (!selectedId || selectedId === "blank") {
-      onApplyTemplate("blank")
+      onApplyTemplate("blank", false)
     } else {
       const tmpl = AGENTS.find((a) => a.id === selectedId)
-      if (tmpl) onApplyTemplate(tmpl)
+      if (tmpl) onApplyTemplate(tmpl, importGuidances)
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl" showCloseButton>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="sm:max-w-4xl p-0 gap-0 overflow-hidden" showCloseButton>
+        <DialogHeader className="p-6 pb-4 border-b border-border">
+          <div className="flex items-center gap-2">
             <SparklesIcon className="size-5 text-primary" />
-            Choose an Agent Template
-          </DialogTitle>
+            <DialogTitle>Choose an Agent Template</DialogTitle>
+          </div>
           <DialogDescription>
-            Select a starter template to pre-fill persona and guidelines, or start from scratch with a blank agent.
+            Select a specialized starter template to pre-fill persona, tone, greetings, and guidance rules, or start from scratch with a blank agent.
           </DialogDescription>
+
+          {/* Category Tabs & Search Bar */}
+          <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+              {AGENT_CATEGORIES.map((cat) => (
+                <Button
+                  key={cat.id}
+                  type="button"
+                  size="xs"
+                  variant={selectedCategory === cat.id ? "default" : "outline"}
+                  className="rounded-full text-xs font-normal"
+                  onClick={() => setSelectedCategory(cat.id)}
+                >
+                  {cat.label}
+                </Button>
+              ))}
+            </div>
+            <div className="relative w-full sm:w-60 shrink-0">
+              <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search templates..."
+                className="h-8 pl-8 pr-7 text-xs"
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <XIcon className="size-3" />
+                </button>
+              ) : null}
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="max-h-[60vh] overflow-y-auto py-2 pr-1">
-          <FieldGroup className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {/* Blank option */}
-            <FieldLabel className="cursor-pointer">
-              <Field orientation="horizontal">
-                <Checkbox
-                  checked={selectedId === "blank"}
-                  onCheckedChange={() => setSelectedId("blank")}
-                />
-                <FieldContent>
-                  <FieldTitle className="flex items-center gap-1.5 font-semibold text-foreground">
-                    <BotIcon className="size-4 text-muted-foreground" />
-                    Start from scratch
-                  </FieldTitle>
-                  <FieldDescription className="text-xs">
-                    Begin with an empty prompt and build custom instructions from the ground up.
-                  </FieldDescription>
-                </FieldContent>
-              </Field>
-            </FieldLabel>
+        {/* Modal Body: Left column template list, Right column rich preview */}
+        <div className="grid grid-cols-1 md:grid-cols-12 max-h-[58vh] min-h-[420px]">
+          {/* Left Column: Template Options */}
+          <div className="md:col-span-5 border-r border-border p-3 overflow-y-auto space-y-2">
+            {/* Blank Option */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setSelectedId("blank")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  setSelectedId("blank")
+                }
+              }}
+              className={cn(
+                "flex flex-col gap-1.5 p-3 rounded-lg border text-left transition-colors cursor-pointer",
+                selectedId === "blank"
+                  ? "border-primary bg-primary/5 shadow-xs"
+                  : "border-border hover:bg-muted/40"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-semibold text-sm text-foreground">
+                  <BotIcon className="size-4 text-muted-foreground" />
+                  Start from scratch
+                </span>
+                {selectedId === "blank" && (
+                  <CheckCircle2Icon className="size-4 text-primary shrink-0" />
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground line-clamp-2">
+                Build custom instructions from scratch with an empty persona and default settings.
+              </p>
+            </div>
 
-            {/* Template cards */}
-            {AGENTS.map((tmpl) => (
-              <FieldLabel key={tmpl.id} className="cursor-pointer">
-                <Field orientation="horizontal">
-                  <Checkbox
-                    checked={selectedId === tmpl.id}
-                    onCheckedChange={() => setSelectedId(tmpl.id)}
-                  />
-                  <FieldContent>
-                    <FieldTitle className="font-semibold text-foreground">
-                      {tmpl.label}
-                    </FieldTitle>
-                    <FieldDescription className="text-xs">
+            {/* Template Cards */}
+            {filteredTemplates.length === 0 ? (
+              <div className="p-8 text-center text-xs text-muted-foreground">
+                No templates found matching &ldquo;{searchQuery}&rdquo;.
+              </div>
+            ) : (
+              filteredTemplates.map((tmpl) => {
+                const isSelected = selectedId === tmpl.id
+                return (
+                  <div
+                    key={tmpl.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedId(tmpl.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        setSelectedId(tmpl.id)
+                      }
+                    }}
+                    className={cn(
+                      "flex flex-col gap-1.5 p-3 rounded-lg border text-left transition-colors cursor-pointer",
+                      isSelected
+                        ? "border-primary bg-primary/5 shadow-xs"
+                        : "border-border hover:bg-muted/40"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="font-semibold text-sm text-foreground block truncate">
+                          {tmpl.label}
+                        </span>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          {tmpl.badge && (
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] px-1.5 py-0 h-4 font-normal"
+                            >
+                              {tmpl.badge}
+                            </Badge>
+                          )}
+                          {tmpl.tone && (
+                            <span className="text-[10px] text-muted-foreground capitalize">
+                              {tmpl.tone}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <CheckCircle2Icon className="size-4 text-primary shrink-0 mt-0.5" />
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">
                       {tmpl.description}
-                    </FieldDescription>
-                  </FieldContent>
-                </Field>
-              </FieldLabel>
-            ))}
-          </FieldGroup>
+                    </p>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {/* Right Column: Template Preview Pane */}
+          <div className="md:col-span-7 p-4 bg-muted/15 overflow-y-auto space-y-4">
+            {selectedId === "blank" ? (
+              <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center p-6 text-muted-foreground">
+                <BotIcon className="size-10 text-muted-foreground/40 mb-3" />
+                <h4 className="font-medium text-foreground text-sm">Blank Canvas</h4>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                  No template preset will be applied. You will start with a clean prompt to write custom guidelines from the ground up.
+                </p>
+              </div>
+            ) : selectedTemplate ? (
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-semibold text-foreground text-base">
+                      {selectedTemplate.label}
+                    </h4>
+                    {selectedTemplate.badge && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs font-normal border-primary/30 text-primary"
+                      >
+                        {selectedTemplate.badge}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {selectedTemplate.description}
+                  </p>
+                </div>
+
+                {/* Configuration Specs */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded-md bg-muted px-2 py-0.5 text-muted-foreground">
+                    Tone: <strong className="text-foreground capitalize">{selectedTemplate.tone ?? "friendly"}</strong>
+                  </span>
+                  <span className="rounded-md bg-muted px-2 py-0.5 text-muted-foreground">
+                    Language: <strong className="text-foreground">Match Customer</strong>
+                  </span>
+                  <span className="rounded-md bg-muted px-2 py-0.5 text-muted-foreground">
+                    Guidances: <strong className="text-foreground">{selectedTemplate.suggestedGuidances?.length ?? 0} rules</strong>
+                  </span>
+                </div>
+
+                {/* Opening Greeting */}
+                {selectedTemplate.greeting && (
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+                      <MessageSquareIcon className="size-3" /> Opening Greeting
+                    </span>
+                    <div className="rounded-md bg-background border border-border p-2.5 text-xs text-foreground/90">
+                      {selectedTemplate.greeting}
+                    </div>
+                  </div>
+                )}
+
+                {/* Fallback Message */}
+                {selectedTemplate.fallback && (
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+                      <RotateCcwIcon className="size-3" /> Fallback Message
+                    </span>
+                    <div className="rounded-md bg-background border border-border p-2.5 text-xs text-muted-foreground">
+                      {selectedTemplate.fallback}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recommended Guidance Rules */}
+                {selectedTemplate.suggestedGuidances && selectedTemplate.suggestedGuidances.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+                        <ShieldCheckIcon className="size-3 text-primary" /> Recommended Guidance Rules
+                      </span>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-muted-foreground hover:text-foreground">
+                        <Checkbox
+                          checked={importGuidances}
+                          onCheckedChange={(checked) => setImportGuidances(Boolean(checked))}
+                        />
+                        <span>Import rules</span>
+                      </label>
+                    </div>
+                    <div className="rounded-md bg-background border border-border p-2.5 space-y-2">
+                      {selectedTemplate.suggestedGuidances.map((g, i) => (
+                        <div key={i} className="text-xs">
+                          <strong className="text-foreground font-medium block">
+                            {i + 1}. {g.title}
+                          </strong>
+                          <p className="text-muted-foreground text-[11px] mt-0.5 pl-2.5 border-l-2 border-primary/30">
+                            {g.instruction}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* System Prompt Instructions Preview */}
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+                    <TerminalSquareIcon className="size-3" /> System Instructions
+                  </span>
+                  <div className="max-h-36 overflow-y-auto rounded-md bg-background border border-border p-2.5 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                    {selectedTemplate.system}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
 
-        <DialogFooter className="flex flex-row items-center justify-between gap-2 border-t border-border pt-4">
+        {/* Modal Footer */}
+        <DialogFooter className="p-4 border-t border-border flex flex-row items-center justify-between gap-2">
           <Button
             type="button"
             variant="ghost"
             onClick={() => {
-              onApplyTemplate("blank")
+              onApplyTemplate("blank", false)
             }}
           >
-            Skip / Start blank
+            Start blank
           </Button>
           <div className="flex items-center gap-2">
             <Button
@@ -1643,7 +1953,8 @@ function AgentTemplateModal({
               Cancel
             </Button>
             <Button type="button" onClick={handleApply}>
-              Apply template
+              <SparklesIcon className="size-3.5 mr-1" />
+              Apply Template
             </Button>
           </div>
         </DialogFooter>
@@ -1732,7 +2043,7 @@ function OverviewCard({
               </div>
               <TooltipProvider>
                 <div className="ml-auto flex shrink-0 items-center gap-0.5">
-                  {isNew && (
+                  {onOpenTemplateModal && (
                     <Tooltip>
                       <TooltipTrigger
                         render={
@@ -1838,15 +2149,13 @@ function OverviewCard({
           <FramePanel className="overflow-hidden p-0" fit>
             <Table>
               <TableBody>
-                {isNew && (
-                  <MetaRow label="Template">
-                    <span className="font-medium text-foreground">
-                      {selectedTemplate
-                        ? selectedTemplate.label
-                        : "Custom (Blank)"}
-                    </span>
-                  </MetaRow>
-                )}
+                <MetaRow label="Template">
+                  <span className="font-medium text-foreground">
+                    {selectedTemplate
+                      ? selectedTemplate.label
+                      : "Custom (Blank)"}
+                  </span>
+                </MetaRow>
                 {!isNew && (
                   <MetaRow label="Status">
                     <AgentStatusBadge status={draft?.status ?? agent.status} />
@@ -2162,6 +2471,7 @@ function MessagesCard({
 
 function GuidanceCard({
   guidance,
+  pendingGuidances = [],
   isNew,
   onAdd,
   onEdit,
@@ -2170,6 +2480,7 @@ function GuidanceCard({
   onMove,
 }: {
   guidance: AgentGuidance[]
+  pendingGuidances?: { title: string; instruction: string }[]
   isNew?: boolean
   onAdd: () => void
   onEdit: (rule: AgentGuidance) => void
@@ -2178,20 +2489,46 @@ function GuidanceCard({
   onMove: (index: number, offset: number) => void
 }) {
   const active = guidance.filter((rule) => rule.isActive).length
+  const badgeLabel = isNew
+    ? pendingGuidances.length > 0
+      ? `${pendingGuidances.length} queued`
+      : "0 active"
+    : `${active} active`
+
   return (
     <SettingsFrame
       title="Guidance"
-      badge={isNew ? "0 active" : `${active} active`}
+      badge={badgeLabel}
       description="Custom instructions applied on top of the Knowledge Base."
     >
       <div className="flex flex-col gap-4">
-        {guidance.length === 0 ? (
+        {isNew && pendingGuidances.length > 0 ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs text-muted-foreground pb-2 border-b border-border">
+              <span>Template Guidance Rules (will be created automatically on save)</span>
+              <Badge variant="outline" className="text-[11px] font-normal border-primary/30 text-primary">
+                {pendingGuidances.length} rules queued
+              </Badge>
+            </div>
+            <div className="divide-y divide-border">
+              {pendingGuidances.map((rule, index) => (
+                <div key={index} className="flex items-start gap-3 py-2.5">
+                  <ShieldCheckIcon className="size-4 text-primary shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm text-foreground">{rule.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{rule.instruction}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : guidance.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
             <ShieldCheckIcon className="size-8 text-muted-foreground/50 mb-2" />
             <p className="font-medium text-foreground">Custom guidance rules</p>
             <p className="text-xs mt-1 max-w-sm">
               {isNew
-                ? "Create this agent to start adding custom rules and constraints."
+                ? "Create this agent to start adding custom rules and constraints, or choose a template above with pre-configured rules."
                 : "No guidance rules yet. Add instructions applied on top of the Knowledge Base."}
             </p>
           </div>
