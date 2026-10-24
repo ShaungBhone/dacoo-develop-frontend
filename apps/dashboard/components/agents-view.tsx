@@ -658,7 +658,10 @@ export function AgentsView() {
             </aside>
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel id="agents-content" className="min-h-0 min-w-0">
+          <ResizablePanel
+            id="agents-content"
+            className="flex min-h-0 min-w-0 flex-col"
+          >
             {mainContent}
           </ResizablePanel>
         </ResizablePanelGroup>
