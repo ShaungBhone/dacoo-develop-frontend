@@ -1934,7 +1934,7 @@ function AgentTemplateModal({
         </div>
 
         {/* Modal Footer */}
-        <DialogFooter className="p-4 border-t border-border flex flex-row items-center justify-between gap-2">
+        <DialogFooter className="mx-0 mb-0 p-4 border-t border-border flex flex-row items-center justify-between gap-2 sm:justify-between">
           <Button
             type="button"
             variant="ghost"
